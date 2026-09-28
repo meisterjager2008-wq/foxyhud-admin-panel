@@ -103,12 +103,14 @@ add_library(foxyhud_panel STATIC
     src/foxyhud/widgets.cpp
     src/foxyhud/icons.cpp
     src/foxyhud/settings.cpp
+    src/foxyhud/system_monitor.cpp
+    src/foxyhud/watermark.cpp
     src/foxyhud/panel_util.cpp)
 target_include_directories(foxyhud_panel PUBLIC src)
 find_package(Threads REQUIRED)
 target_link_libraries(foxyhud_panel PUBLIC imgui PRIVATE Threads::Threads)
 if(WIN32)
-    target_link_libraries(foxyhud_panel PRIVATE shell32)  # ShellExecuteW for "Open Folder"
+    target_link_libraries(foxyhud_panel PRIVATE shell32 pdh)  # "Open Folder", watermark CPU/GPU counters
 endif()
 foxyhud_warnings(foxyhud_panel)
 

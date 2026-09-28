@@ -180,7 +180,8 @@ bool SliderBar(const char* label, float* frac, const char* value_text, int steps
     if (fill_w >= 1.0f) {
         const ImVec2 fill_max(bar.Min.x + ImMax(fill_w, r * 2.0f), bar.Max.y);
         const int vtx_begin = dl->VtxBuffer.Size;
-        dl->AddRectFilled(bar.Min, fill_max, IM_COL32_WHITE, r);
+        // White base whose alpha follows the menu fade; the gradient below keeps that alpha.
+        dl->AddRectFilled(bar.Min, fill_max, Col(ImVec4(1, 1, 1, 1)), r);
         const int vtx_end = dl->VtxBuffer.Size;
         const ImVec4 hi = Lerp(C().accent, C().accent_text, 0.35f * th);
         ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vtx_begin, vtx_end, bar.Min, ImVec2(fill_max.x, bar.Min.y),
@@ -1208,7 +1209,7 @@ bool DropdownItem(const char* label, bool selected, bool show_check) {
         if (!selected)
             dl->AddRect(cb.Min, cb.Max, Col(C().widget_border), Px(3));
         else
-            ImGui::RenderCheckMark(dl, ImVec2(cb.Min.x + box * 0.2f, cb.Min.y + box * 0.2f), IM_COL32_WHITE, box * 0.6f);
+            ImGui::RenderCheckMark(dl, ImVec2(cb.Min.x + box * 0.2f, cb.Min.y + box * 0.2f), Col(ImVec4(1, 1, 1, 1)), box * 0.6f);
     }
     return pressed;
 }

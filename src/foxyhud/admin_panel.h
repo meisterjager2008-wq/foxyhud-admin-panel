@@ -7,6 +7,7 @@
 #include "imgui.h"
 #include "foxyhud/icons.h"
 #include "foxyhud/settings.h"
+#include "foxyhud/system_monitor.h"
 
 namespace foxy {
 
@@ -46,7 +47,8 @@ public:
         on_settings_changed_ = std::move(callback);
     }
 
-    // Brand shown at the top-left, e.g. "FoxyHUD" + ".admin".
+    // Brand shown in the menu header and the watermark: `name` in white,
+    // `suffix` in the accent color (default "Foxyhud." + "pw").
     void SetBranding(std::string name, std::string suffix);
 
 private:
@@ -69,6 +71,9 @@ private:
     void  SelectTab(int tab, int sub_tab = -1);
     float MinWindowWidth() const;
 
+    // watermark.cpp
+    void RenderWatermark();
+
     // page_*.cpp
     void RenderPlayersPage(const ImVec2& size);
     void RenderVisualsPage(const ImVec2& size);
@@ -84,8 +89,8 @@ private:
 
     PanelSettings settings_;
     std::function<void(const PanelSettings&)> on_settings_changed_;
-    std::string brand_name_ = "FoxyHUD";
-    std::string brand_suffix_ = ".admin";
+    std::string brand_name_ = "Foxyhud.";
+    std::string brand_suffix_ = "pw";
 
     bool             open_ = true;
     bool             was_open_ = true;
@@ -100,6 +105,11 @@ private:
     char player_message_[256] = {};
     char player_note_[256] = {};
     char broadcast_[256] = {};
+
+    // Watermark
+    SystemMonitor monitor_;
+    float         fps_shown_ = 0.0f;
+    double        fps_updated_at_ = -100.0;
 
     // Config tab
     std::string              config_dir_;

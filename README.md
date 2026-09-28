@@ -1,8 +1,9 @@
-# FoxyHUD Menu
+# Foxyhud.pw Menu
 
 A custom [Dear ImGui](https://github.com/ocornut/imgui) menu with a dark theme: brand name and icon tabs in the
 header, icon sub-tabs, bordered two-column boxes, blue checkboxes, color swatches, gradient sliders, dropdowns and
-keybind boxes. It builds for **DirectX 9, 10, 11 and 12** (plus OpenGL for Linux/macOS).
+keybind boxes, plus a watermark bar with live FPS / CPU / GPU / RAM. It builds for **DirectX 9, 10, 11 and 12**
+(plus OpenGL for Linux/macOS).
 
 The menu is **design only**. Every control remembers its value, and the Config tab can save and load those values,
 but nothing is connected to a game yet. What works:
@@ -10,9 +11,12 @@ but nothing is connected to a game yet. What works:
 - the menu key (Insert) opens and closes the menu;
 - each keybind box captures a key, and that key toggles the checkbox next to it;
 - configs can be created, loaded, saved, deleted, and the folder opened;
-- the Config tab's accent color, animations, tooltips and opacity change the menu itself.
+- the Config tab's accent color, animations, tooltips and opacity change the menu itself;
+- the [watermark](#watermark) (Misc > Windows > **Watermark**) shows live FPS, CPU, GPU and RAM usage.
 
 ![Misc tab](docs/misc.png)
+
+![Watermark](docs/watermark.png)
 
 | Visuals: Players | Visuals: World | Players |
 | --- | --- | --- |
@@ -31,14 +35,38 @@ but nothing is connected to a game yet. What works:
 | Ragebot | none | Maintenance placeholder |
 | Legitbot | General, Advanced | Maintenance placeholder |
 | **Visuals** | Players, World, Chat | Checkboxes with color swatches, dropdowns and sliders |
-| **Misc** | none | Server, Chat, Broadcast, Admin (with keybinds) and Windows sections |
+| **Misc** | none | Server, Chat, Broadcast, Admin (with keybinds) and Windows (incl. the Watermark checkbox) sections |
 | Helper | none | Maintenance placeholder |
 | **Players** | none | Search, filters, action checkboxes, buttons, moderation controls, quick keybinds |
-| Inventory | none | Maintenance placeholder |
+| Inventory | none | Maintenance placeholder (karambit icon) |
 | **Config** | none | Config list + Create, Load / Save / Delete / Refresh / Open Folder, menu settings, build date |
 
 **Color swatches:** left-click opens the picker (color square, hue and alpha bars, presets and a hex field).
 Right-click gives Copy / Paste.
+
+## Watermark
+
+A bar in the top-right corner of the screen:
+
+`Foxyhud.pw | FPS: 144 | CPU: 12% | GPU: 34% | RAM: 8.1 / 15.9 GB`
+
+- It uses the menu's background color, with an accent-color line along the bottom. "Foxyhud." is white and "pw" is
+  the accent color, the same as the brand in the menu header.
+- It stays on screen while the menu is closed. Turn it on or off with Misc > Windows > **Watermark** (saved in
+  configs). What it shows can't be changed.
+- The numbers are live, like Task Manager. FPS updates twice a second. CPU, GPU and RAM are read once a second on a
+  background thread, which only runs while the watermark is on, so the game's frames never wait on them.
+
+Where the numbers come from:
+
+| | Windows | Linux |
+| --- | --- | --- |
+| FPS | the game's frame rate (ImGui) | same |
+| CPU | Task Manager's counter (`% Processor Utility`) | `/proc/stat` |
+| GPU | Task Manager's counter (`GPU Engine`, busiest engine; Windows 10 1709+) | AMD and some Intel GPUs (`gpu_busy_percent`) |
+| RAM | used / total physical memory | `MemTotal - MemAvailable` / `MemTotal` |
+
+A value shows **N/A** when the system doesn't expose it (for example GPU on NVIDIA under Linux, or in a VM).
 
 ## Build on Windows (DirectX 9 / 10 / 11 / 12)
 
@@ -177,7 +205,9 @@ When used through `add_subdirectory`, everything except the menu library default
 | --- | --- |
 | Tab names, icons, which page each tab shows | `kTabs` in `src/foxyhud/admin_panel.cpp` |
 | Sub-tab icons and tooltips | `kLegitbotSubTabs` / `kVisualsSubTabs` in `src/foxyhud/admin_panel.cpp` |
-| Brand text | `panel.SetBranding("Name", ".suffix")` |
+| Brand text (header + watermark) | `panel.SetBranding("Foxyhud.", "pw")`: first part white, second part accent color |
+| Watermark layout | `RenderWatermark()` in `src/foxyhud/watermark.cpp` |
+| Icons (e.g. the Inventory karambit) | `src/foxyhud/icons.cpp` |
 | Colors | `MakeDefaultPalette()` in `src/foxyhud/theme.cpp` (accent also in Config > Accent Override) |
 | Font sizes | `theme::LoadFonts()` in `src/foxyhud/theme.cpp` |
 | Saved values | `PanelSettings` in `src/foxyhud/settings.h` + one line in `VisitFields()` in `settings.cpp` |
@@ -219,6 +249,8 @@ src/foxyhud/            the menu (renderer independent)
   page_players.cpp        Players tab
   page_config.cpp         Config tab
   page_maintenance.cpp    placeholder for unfinished tabs
+  watermark.cpp           top-right FPS / CPU / GPU / RAM bar
+  system_monitor.*        background thread reading CPU / GPU / RAM usage
   widgets.*  theme.*  icons.*
   settings.*              every control's value + config save / load / open folder
   renderers/              win32 + dx9 / dx10 / dx11 / dx12 helpers

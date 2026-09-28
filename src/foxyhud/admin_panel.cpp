@@ -29,7 +29,7 @@ const AdminPanel::TabDef AdminPanel::kTabs[] = {
     {"Misc",      Icon::Cog,       Page::Misc,        nullptr, 0},
     {"Helper",    Icon::Help,      Page::Maintenance, nullptr, 0},
     {"Players",   Icon::EyeFrame,  Page::Players,     nullptr, 0},
-    {"Inventory", Icon::Palette,   Page::Maintenance, nullptr, 0},
+    {"Inventory", Icon::Karambit,  Page::Maintenance, nullptr, 0},
     {"Config",    Icon::Gear,      Page::Config,      nullptr, 0},
 };
 const int AdminPanel::kTabCount = IM_ARRAYSIZE(AdminPanel::kTabs);
@@ -83,6 +83,7 @@ void AdminPanel::Render() {
     if (!settings_.animations || ImFabs(target - open_anim_) < 0.01f)
         open_anim_ = target;
 
+    RenderWatermark();
     if (open_anim_ > 0.0f)
         RenderMainWindow();
 

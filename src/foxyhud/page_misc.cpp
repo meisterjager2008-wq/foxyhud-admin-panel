@@ -62,6 +62,7 @@ void AdminPanel::RenderMiscPage(const ImVec2& size) {
         changed |= ui::Checkbox("Player IDs Above Heads", &s.overhead_ids);
 
         ui::Section("Windows");
+        changed |= ui::Checkbox("Watermark", &s.watermark);
         changed |= ui::Checkbox("Admin Log", &s.win_admin_log);
         changed |= ui::Checkbox("Chat Log", &s.win_chat_log);
         changed |= ui::Checkbox("Keybind List", &s.win_keybinds);

@@ -52,6 +52,7 @@ struct PanelSettings {
     bool  overhead_ids          = true;
 
     // Misc > Windows
+    bool  watermark             = true;   // top-right bar: brand | FPS | CPU | GPU | RAM
     bool  win_admin_log         = false;
     bool  win_chat_log          = true;
     bool  win_keybinds          = true;

@@ -39,6 +39,25 @@ void DrawGear(const Pen& p, int teeth, float r_out, float r_in, float hole, floa
     p.Circle(0.0f, 0.0f, hole);
 }
 
+// Smooth curve (Catmull-Rom) through `pts`, appended to the current path.
+void SmoothPath(const Pen& p, const ImVec2* pts, int n, bool skip_first) {
+    constexpr int kSteps = 6;
+    for (int i = 0; i < n - 1; ++i) {
+        const ImVec2& p0 = pts[i > 0 ? i - 1 : i];
+        const ImVec2& p1 = pts[i];
+        const ImVec2& p2 = pts[i + 1];
+        const ImVec2& p3 = pts[i + 2 < n ? i + 2 : i + 1];
+        for (int k = (i == 0 && !skip_first) ? 0 : 1; k <= kSteps; ++k) {
+            const float t = static_cast<float>(k) / kSteps, t2 = t * t, t3 = t2 * t;
+            const float x = 0.5f * (2 * p1.x + (p2.x - p0.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                                    (3 * p1.x - p0.x - 3 * p2.x + p3.x) * t3);
+            const float y = 0.5f * (2 * p1.y + (p2.y - p0.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                                    (3 * p1.y - p0.y - 3 * p2.y + p3.y) * t3);
+            p.dl->PathLineTo(p.P(x, y));
+        }
+    }
+}
+
 void DrawPerson(const Pen& p, float x, float y, float k) {
     p.Circle(x, y - 0.20f * k, 0.21f * k);
     p.Arc(x, y + 0.50f * k, 0.36f * k, kPi, 2.0f * kPi);
@@ -141,6 +160,32 @@ void DrawIcon(ImDrawList* dl, Icon icon, const ImVec2& center, float size, ImU32
         p.Circle(0.0f, 0.0f, 0.24f);
         p.Dot(0.0f, 0.0f, 0.07f);
         break;
+
+    case Icon::Karambit: {
+        // Traced from a karambit silhouette turned upside down: finger ring at the
+        // top left, handle to the right, blade curving down to the tip.
+        static const ImVec2 kBack[] = {  // ring -> tip, along the back of the blade
+            {-0.283f, -0.408f}, {-0.099f, -0.395f}, {0.033f, -0.342f}, {0.112f, -0.289f}, {0.164f, -0.237f},
+            {0.243f, -0.197f}, {0.322f, -0.158f}, {0.375f, -0.092f}, {0.414f, -0.026f}, {0.454f, 0.066f},
+            {0.480f, 0.158f}, {0.493f, 0.263f}, {0.475f, 0.355f}, {0.449f, 0.421f},
+        };
+        static const ImVec2 kEdge[] = {  // tip -> ring, along the cutting edge and finger notch
+            {0.449f, 0.421f}, {0.428f, 0.368f}, {0.414f, 0.289f}, {0.401f, 0.237f}, {0.388f, 0.184f},
+            {0.362f, 0.132f}, {0.322f, 0.105f}, {0.283f, 0.053f}, {0.204f, 0.000f}, {0.151f, -0.026f},
+            {0.112f, -0.053f}, {0.099f, -0.132f}, {0.086f, -0.158f}, {0.007f, -0.184f}, {-0.059f, -0.211f},
+            {-0.178f, -0.229f}, {-0.270f, -0.224f},
+        };
+        SmoothPath(p, kBack, IM_ARRAYSIZE(kBack), false);
+        SmoothPath(p, kEdge, IM_ARRAYSIZE(kEdge), true);
+        // The blade is slim; at tab size (~12 px) outline it too so it stays readable.
+        const float boost = size < 24.0f ? (24.0f - size) / 24.0f : 0.0f;
+        if (boost > 0.0f)
+            dl->AddPolyline(dl->_Path.Data, dl->_Path.Size, col, ImDrawFlags_Closed, 1.3f * boost);
+        dl->PathFillConcave(col);
+        const float ring_r = 0.084f * size + 0.35f * boost, ring_t = 0.064f * size + 0.9f * boost;
+        dl->AddCircle(p.P(-0.360f, -0.312f), ring_r, col, 0, ring_t);  // finger ring
+        break;
+    }
 
     case Icon::Globe:
         p.Circle(0.0f, 0.0f, 0.46f);

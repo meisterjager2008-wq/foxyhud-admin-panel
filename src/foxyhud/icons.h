@@ -33,6 +33,7 @@ enum class Icon {
     Target,     // concentric circles
     Globe,
     Cog,        // small 6-tooth gear
+    Karambit,   // curved knife with a finger ring
 };
 
 // `size` is the edge of the square the icon fits in, `rotation` is in radians

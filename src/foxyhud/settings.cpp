@@ -71,6 +71,7 @@ void VisitFields(S& s, F&& f) {
     f("god_mode_key", s.god_mode_key);
     f("overhead_ids", s.overhead_ids);
 
+    f("watermark", s.watermark);
     f("win_admin_log", s.win_admin_log);
     f("win_chat_log", s.win_chat_log);
     f("win_keybinds", s.win_keybinds);
