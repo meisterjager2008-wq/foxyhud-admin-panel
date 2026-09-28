@@ -59,6 +59,7 @@ void VisitFields(S& s, F&& f) {
     f("slow_mode", s.slow_mode);
     f("slow_mode_seconds", s.slow_mode_seconds);
     f("mute_all", s.mute_all);
+    f("broadcast_banner", s.broadcast_banner);
     f("log_events", s.log_events);
 
     f("admin_tag", s.admin_tag);
@@ -79,6 +80,22 @@ void VisitFields(S& s, F&& f) {
     f("alert_sound", s.alert_sound);
     f("alert_volume", s.alert_volume);
 
+    f("players_flagged_only", s.players_flagged_only);
+    f("players_show_admins", s.players_show_admins);
+    f("players_sort", s.players_sort);
+    f("players_columns", s.players_columns);
+    f("act_freeze", s.act_freeze);
+    f("act_spectate", s.act_spectate);
+    f("act_mute_chat", s.act_mute_chat);
+    f("act_mute_voice", s.act_mute_voice);
+    f("quick_freeze", s.quick_freeze);
+    f("quick_freeze_key", s.quick_freeze_key);
+    f("quick_spectate", s.quick_spectate);
+    f("quick_spectate_key", s.quick_spectate_key);
+    f("ban_reason", s.ban_reason);
+    f("ban_duration", s.ban_duration);
+    f("ban_ip", s.ban_ip);
+
     f("name_tags", s.name_tags);
     f("name_tag_color", s.name_tag_color);
     f("name_tag_info", s.name_tag_info);
@@ -95,6 +112,28 @@ void VisitFields(S& s, F&& f) {
     f("blip_color", s.blip_color);
     f("report_markers", s.report_markers);
     f("marker_color", s.marker_color);
+    f("world_ambient", s.world_ambient);
+    f("ambient_color", s.ambient_color);
+    f("world_color_on", s.world_color_on);
+    f("world_color", s.world_color);
+    f("sky_color_on", s.sky_color_on);
+    f("sky_color", s.sky_color);
+    f("fog_on", s.fog_on);
+    f("fog_color", s.fog_color);
+    f("fog_density", s.fog_density);
+    f("safe_zones", s.safe_zones);
+    f("safe_zone_color", s.safe_zone_color);
+    f("build_areas", s.build_areas);
+    f("build_area_color", s.build_area_color);
+    f("spawn_protection", s.spawn_protection);
+    f("spawn_color", s.spawn_color);
+    f("zone_style", s.zone_style);
+    f("zone_opacity", s.zone_opacity);
+    f("chat_timestamps", s.chat_timestamps);
+    f("chat_show_filtered", s.chat_show_filtered);
+    f("chat_fade", s.chat_fade);
+    f("chat_position", s.chat_position);
+    f("chat_scale", s.chat_scale);
     f("chat_admin_color", s.chat_admin_color);
     f("chat_announce_color", s.chat_announce_color);
     f("chat_pm_color", s.chat_pm_color);
@@ -196,10 +235,19 @@ void ClampSettings(PanelSettings& s) {
     };
     for (float* col : {s.accent, s.name_tag_color, s.reported_color, s.flagged_color, s.frozen_color, s.admin_color,
                        s.blip_color, s.marker_color, s.chat_admin_color, s.chat_announce_color, s.chat_pm_color,
-                       s.chat_system_color, s.chat_filtered_color, s.flash_color})
+                       s.chat_system_color, s.chat_filtered_color, s.flash_color, s.ambient_color, s.world_color,
+                       s.sky_color, s.fog_color, s.safe_zone_color, s.build_area_color, s.spawn_color})
         for (int i = 0; i < (col == s.accent ? 3 : 4); ++i)
             clamp(col[i], 0.0f, 1.0f);
     clamp(s.highlight_style, 0, 2);
+    clamp(s.players_sort, 0, 3);
+    clamp(s.ban_reason, 0, 8);
+    clamp(s.ban_duration, 0, 8);
+    clamp(s.zone_style, 0, 2);
+    clamp(s.chat_position, 0, 2);
+    clamp(s.fog_density, 0.0f, 1.0f);
+    clamp(s.zone_opacity, 0.0f, 1.0f);
+    clamp(s.chat_scale, 0.75f, 1.5f);
     clamp(s.overlay_distance, 10, 1000);
     clamp(s.toast_seconds, 2.0f, 20.0f);
     clamp(s.menu_opacity, 60.0f, 100.0f);
@@ -209,7 +257,8 @@ void ClampSettings(PanelSettings& s) {
     clamp(s.slow_mode_seconds, 1.0f, 30.0f);
     clamp(s.alert_sound, 0, 3);
     clamp(s.alert_volume, 0.0f, 1.0f);
-    for (int* key : {&s.menu_key, &s.noclip_key, &s.invisible_key, &s.god_mode_key})
+    for (int* key : {&s.menu_key, &s.noclip_key, &s.invisible_key, &s.god_mode_key, &s.quick_freeze_key,
+                     &s.quick_spectate_key})
         if (!valid_key(*key))
             *key = ImGuiKey_None;
     if (s.menu_key == ImGuiKey_None)

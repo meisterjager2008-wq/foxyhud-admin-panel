@@ -35,7 +35,6 @@ void AdminPanel::RenderConfigPage(const ImVec2& size) {
         loaded_config_ = name;
         changed = true;
         SetConfigStatus(false, "Loaded " + name + ".cfg");
-        Log(AdminLogEntry::Kind::Success, "Loaded config %s.cfg", name.c_str());
     };
 
     // --- Configurations -------------------------------------------------------------
@@ -91,7 +90,6 @@ void AdminPanel::RenderConfigPage(const ImVec2& size) {
                     if (configs_[i] == name)
                         selected_config_ = i;
                 SetConfigStatus(false, "Created " + name + ".cfg");
-                Log(AdminLogEntry::Kind::Success, "Created config %s.cfg", name.c_str());
             }
         }
     }
@@ -122,7 +120,6 @@ void AdminPanel::RenderConfigPage(const ImVec2& size) {
             } else {
                 loaded_config_ = selected_name;
                 SetConfigStatus(false, "Saved " + selected_name + ".cfg");
-                Log(AdminLogEntry::Kind::Success, "Saved config %s.cfg", selected_name.c_str());
             }
         }
         if (ui::ConfirmButton("Delete", "Click again to delete", bsize, ui::ButtonStyle::Flat, ui::ButtonStyle::Danger)) {
@@ -133,7 +130,6 @@ void AdminPanel::RenderConfigPage(const ImVec2& size) {
                 selected_config_ = -1;
                 RefreshConfigs();
                 SetConfigStatus(false, "Deleted " + selected_name + ".cfg");
-                Log(AdminLogEntry::Kind::Warning, "Deleted config %s.cfg", selected_name.c_str());
             } else {
                 SetConfigStatus(true, "Could not delete " + selected_name + ".cfg");
             }

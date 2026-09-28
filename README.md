@@ -1,175 +1,194 @@
-# FoxyHUD Admin Panel
+# FoxyHUD Menu
 
-An in-game admin panel overlay built on [Dear ImGui](https://github.com/ocornut/imgui).
-You use it to see who is on your server and to moderate them: warn, kick, ban, freeze, mute and spectate.
-The panel uses a custom dark theme: a brand name next to tabs with icons, icon sub-tabs under the header,
-bordered two-column boxes, blue-filled checkboxes, color swatches, gradient sliders, blue-chevron dropdowns and
-keybind boxes.
+A custom [Dear ImGui](https://github.com/ocornut/imgui) menu with a dark theme: brand name and icon tabs in the
+header, icon sub-tabs, bordered two-column boxes, blue checkboxes, color swatches, gradient sliders, dropdowns and
+keybind boxes. It builds for **DirectX 9, 10, 11 and 12** (plus OpenGL for Linux/macOS).
 
-![Players tab](docs/players.png)
+The menu is **design only**. Every control remembers its value, and the Config tab can save and load those values,
+but nothing is connected to a game yet. What works:
 
-| Players: Reports | Players: Ban list | Misc: Overlays & colors |
+- the menu key (Insert) opens and closes the menu;
+- each keybind box captures a key, and that key toggles the checkbox next to it;
+- configs can be created, loaded, saved, deleted, and the folder opened;
+- the Config tab's accent color, animations, tooltips and opacity change the menu itself.
+
+![Misc tab](docs/misc.png)
+
+| Visuals: Players | Visuals: World | Players |
 | --- | --- | --- |
-| ![Reports](docs/reports.png) | ![Ban list](docs/bans.png) | ![Overlays](docs/overlays.png) |
+| ![Visuals](docs/visuals.png) | ![World](docs/world.png) | ![Players](docs/players.png) |
 
-| Misc: General | Config | Maintenance placeholder |
+| Legitbot (Maintenance + sub-tabs) | Config | Running on DirectX 12 |
 | --- | --- | --- |
-| ![Misc](docs/misc.png) | ![Config](docs/config.png) | ![Maintenance](docs/maintenance.png) |
-
-The full scene below shows the overlay windows around the panel (player counter, keybind list, chat log and
-admin log):
-
-![Overview](docs/overview.png)
+| ![Legitbot](docs/legitbot.png) | ![Config](docs/config.png) | ![DirectX 12](docs/directx12.png) |
 
 ## Tabs
 
-`Players | Creator | Visitors | Misc | Helper | Players | Painting | Config`
+`Ragebot | Legitbot | Visuals | Misc | Helper | Players | Inventory | Config`
 
-Tabs with sub-pages show a row of icon buttons centered under the header; hover an icon to see its name.
-
-| Tab | Sub-tabs | What's there |
+| Tab | Sub-tabs (icons under the header) | Content |
 | --- | --- | --- |
-| **Players** | Online players | Player list with search and a flagged-only filter. The detail view shows ID, IP (masked), ping, playtime, warnings, reports and previous bans. From there you can freeze, mute chat/voice, spectate, teleport to or bring the player, send a private message, and warn, kick or ban. Bans take a reason, a duration, an IP-ban option and a note. The view also shows the player's recent chat. |
-| | Reports | Open reports, newest first. Each one shows the reason, the reporter's message and the target's recent chat. You can open the player, go to them or spectate them, then mark the report resolved or dismiss it. |
-| | Ban list | Active bans with search and time left. The detail view shows reason, admin, dates, IP ban and note, plus Unban (click twice to confirm). |
-| **Misc** | General | Server settings (lock, whitelist, max players, AFK kick, announcements), chat settings (filter, slow mode, mute all, log events) and broadcast. Admin tools: admin tag, noclip, invisible and god mode, each with a keybind. It also toggles the overlay windows and report alerts. |
-| | Overlays & colors | Toggles, each with a color swatch, for things your game draws for admins: name tags, highlights for reported / frozen / admin players, and map blips and markers. Also chat colors (used by the Chat log window) and report alerts, including corner pop-ups for new reports. |
-| **Config** | none | The left box lists your configs; type a name at the bottom and press **Create**. Actions: Load, Save, Delete, Refresh, Open Folder. Settings: menu key, accent override (with a color swatch), animations, tooltips, block game input, confirm bans/kicks, require a ban note, mask IPs, opacity, and the build date. |
-| Creator, Visitors, Helper, Players (2nd), Painting | none | These show an animated **Maintenance** placeholder until you build them. |
+| Ragebot | none | Maintenance placeholder |
+| Legitbot | General, Advanced | Maintenance placeholder |
+| **Visuals** | Players, World, Chat | Checkboxes with color swatches, dropdowns and sliders |
+| **Misc** | none | Server, Chat, Broadcast, Admin (with keybinds) and Windows sections |
+| Helper | none | Maintenance placeholder |
+| **Players** | none | Search, filters, action checkboxes, buttons, moderation controls, quick keybinds |
+| Inventory | none | Maintenance placeholder |
+| **Config** | none | Config list + Create, Load / Save / Delete / Refresh / Open Folder, menu settings, build date |
 
-**Color swatches:** left-click opens the picker (color square, hue and alpha bars, preset colors and a hex field).
-Right-click gives Copy / Paste, so you can move a color between swatches.
+**Color swatches:** left-click opens the picker (color square, hue and alpha bars, presets and a hex field).
+Right-click gives Copy / Paste.
 
-## Build the demo
+## Build on Windows (DirectX 9 / 10 / 11 / 12)
 
-You need CMake 3.16+ and a C++17 compiler. The build downloads Dear ImGui (v1.92.9b) and GLFW automatically.
+You need:
+- **Visual Studio 2022** with the "Desktop development with C++" workload;
+- **CMake 3.16+**;
+- **Git**.
+
+Dear ImGui is downloaded during the first build.
+
+```powershell
+git clone -b claude/festive-curie-eqrl9v https://github.com/meisterjager2008-wq/foxyhud-admin-panel.git
+cd foxyhud-admin-panel
+cmake -S . -B build
+cmake --build build --config Release
+```
+
+This builds one demo per DirectX version:
+
+```powershell
+.\build\Release\foxyhud_demo_dx9.exe
+.\build\Release\foxyhud_demo_dx10.exe
+.\build\Release\foxyhud_demo_dx11.exe
+.\build\Release\foxyhud_demo_dx12.exe
+```
+
+Each demo opens a window with only the menu in it. Press **Insert** to toggle it.
+
+To build only some versions, turn the others off, e.g. `cmake -S . -B build -DFOXYHUD_DX9=OFF -DFOXYHUD_DX10=OFF`.
+
+## Build on Linux / macOS (OpenGL)
 
 ```bash
 cmake -S . -B build
-cmake --build build --config Release
-./build/foxyhud_demo            # Windows: build\Release\foxyhud_demo.exe
+cmake --build build
+./build/foxyhud_demo_opengl
 ```
 
-On Linux you also need the X11/GL dev packages
-(`sudo apt install libgl-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`).
-
-The demo fakes a game frame in the background and runs a mock server (`src/demo/mock_backend.cpp`).
-In the mock, players join and leave, chat and get reported. Press **Insert** to toggle the panel.
+On Linux you also need `libgl-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`.
 
 ## Put it in your game
 
-The panel code in `src/foxyhud/` only depends on ImGui. It doesn't care which renderer you use (DX11, DX12,
-Vulkan, OpenGL or an engine's own ImGui integration).
-
 ### 1. Add it to your build
 
-**CMake:** if your game already has an `imgui` target, the panel links against it and downloads nothing.
-
 ```cmake
+set(FOXYHUD_DX11 ON)          # the DirectX version(s) your game uses: FOXYHUD_DX9 / DX10 / DX11 / DX12
 add_subdirectory(foxyhud-admin-panel)
-target_link_libraries(MyGame PRIVATE foxyhud_panel)
+target_link_libraries(MyGame PRIVATE foxyhud_dx11)   # foxyhud_dx9 / foxyhud_dx10 / foxyhud_dx11 / foxyhud_dx12
 ```
 
-**Anything else:** add `src/foxyhud/*.cpp` to your project and put `src/` on the include path.
-Tested with ImGui 1.91.9b and 1.92.9b; it also compiles against 1.90.9.
+Your game can support several versions: turn on each option and link each `foxyhud_dxN` library.
 
-### 2. Initialise once, after `ImGui::CreateContext()`
+If your game already builds Dear ImGui as an `imgui` target, the menu uses it. In that case, set
+`FOXYHUD_IMGUI_DIR` to your ImGui folder so the DirectX helpers can find its `backends/` folder.
+
+### 2. Forward window messages
+
+At the top of your window procedure:
+
+```cpp
+#include "foxyhud/renderers/win32.h"
+
+if (foxy::win32::HandleMessage(hwnd, msg, wparam, lparam))
+    return true;
+```
+
+### 3. Set up once, draw every frame
+
+Only the lines for your DirectX version are needed. `Init` creates the ImGui context and loads the menu's fonts
+and theme, scaled for the window's DPI.
 
 ```cpp
 #include "foxyhud/admin_panel.h"
-#include "foxyhud/theme.h"
 
-foxy::theme::LoadFonts(dpi_scale);   // embedded Montserrat, no font files to ship
-foxy::theme::Apply(dpi_scale);       // colors + style
-// ...then your usual ImGui_ImplWin32_Init / ImGui_ImplDX11_Init, etc.
+// ---- DirectX 9 --------------------------------------------------------------
+#include "foxyhud/renderers/dx9.h"
+foxy::dx9::Init(hwnd, device);                 // once, after creating the device
+foxy::AdminPanel panel;
+// every frame:
+foxy::dx9::NewFrame();
+panel.Render();
+device->BeginScene();  /* your scene */  foxy::dx9::Render();  device->EndScene();
+// around device->Reset():  foxy::dx9::OnDeviceLost();  device->Reset(...);  foxy::dx9::OnDeviceReset();
 
-MyServerBackend backend;             // your IAdminBackend implementation (step 3)
-foxy::AdminPanel panel(backend);     // optional 2nd arg: config folder (default "configs")
-panel.SetBranding("FoxyHUD", ".admin");
+// ---- DirectX 10 -------------------------------------------------------------
+#include "foxyhud/renderers/dx10.h"
+foxy::dx10::Init(hwnd, device);
+// every frame: foxy::dx10::NewFrame(); panel.Render(); /* your scene, back buffer bound */ foxy::dx10::Render();
+
+// ---- DirectX 11 -------------------------------------------------------------
+#include "foxyhud/renderers/dx11.h"
+foxy::dx11::Init(hwnd, device, context);
+// every frame: foxy::dx11::NewFrame(); panel.Render(); /* your scene, back buffer bound */ foxy::dx11::Render();
+
+// ---- DirectX 12 -------------------------------------------------------------
+#include "foxyhud/renderers/dx12.h"
+foxy::dx12::Init(hwnd, device, command_queue, frames_in_flight, DXGI_FORMAT_R8G8B8A8_UNORM /* back buffer format */);
+// every frame: foxy::dx12::NewFrame(); panel.Render();
+//   then while recording (back buffer in RENDER_TARGET state and bound): foxy::dx12::Render(command_list);
+
+// on exit (DX12: after waiting for the GPU): foxy::dxN::Shutdown(); ImGui::DestroyContext();
 ```
 
-### 3. Connect it to your server
+The demos in `src/demo/main_dx9.cpp` … `main_dx12.cpp` are complete, working examples of exactly this.
 
-The panel is only UI. Every button calls a method on `foxy::IAdminBackend` (`src/foxyhud/backend.h`), and you
-forward those calls to your server:
+### 4. Input
+
+While `panel.WantsGameInputBlocked()` is true, show the cursor and ignore mouse/keyboard in your game. That's
+while the menu is open and Config > **Block Game Input** is on.
+
+### 5. Wiring controls to your game (later)
+
+All values live in `panel.Settings()` (`src/foxyhud/settings.h`). To react when something changes, use this
+callback:
 
 ```cpp
-class MyServerBackend : public foxy::IAdminBackend {
-public:
-    const std::vector<foxy::PlayerInfo>& GetPlayers() override { return cached_players_; }
-    const std::vector<foxy::ChatMessage>& GetChatLog() override { return cached_chat_; }
-    const std::vector<foxy::PlayerReport>& GetReports() override { return cached_reports_; }
-    const std::vector<foxy::BanEntry>& GetBans() override { return cached_bans_; }
-
-    void Moderate(const foxy::ModerationRequest& r) override { net::Send(AdminPacket::Moderate(r)); }
-    void SetFrozen(uint64_t id, bool on) override            { net::Send(AdminPacket::Freeze(id, on)); }
-    void BringPlayer(uint64_t id) override                   { net::Send(AdminPacket::Bring(id)); }
-    void ResolveReport(uint64_t report, bool acted) override { net::Send(AdminPacket::Resolve(report, acted)); }
-    void Unban(uint64_t id) override                         { net::Send(AdminPacket::Unban(id)); }
-    // ... every method has an empty default, so implement what you need.
-};
+panel.SetOnSettingsChanged([](const foxy::PanelSettings& s) {
+    // e.g. game.SetNoclip(s.noclip);
+});
 ```
 
-> **Security:** the client-side panel must never be what enforces a ban. The server has to check that the
-> sender is a real admin (account role or permission list) before it applies any request. Otherwise anyone who
-> sends the same packets can ban people.
+## CMake options
 
-### 4. Draw it every frame
+| Option | Default | What it does |
+| --- | --- | --- |
+| `FOXYHUD_DX9`, `FOXYHUD_DX10`, `FOXYHUD_DX11`, `FOXYHUD_DX12` | ON on Windows (top-level build) | Build `foxyhud_dxN` (+ its demo) |
+| `FOXYHUD_OPENGL_DEMO` | ON on Linux/macOS | Build the GLFW + OpenGL 3 demo |
+| `FOXYHUD_BUILD_DEMOS` | ON (top-level build) | Build the demo programs |
+| `FOXYHUD_IMGUI_DIR` | empty (download) | Use an existing Dear ImGui source folder |
 
-```cpp
-ImGui_ImplDX11_NewFrame();
-ImGui_ImplWin32_NewFrame();
-ImGui::NewFrame();
-
-panel.Render();                     // handles the menu key (Insert by default) and the overlay windows
-
-ImGui::Render();
-ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-```
-
-While the panel is open, show the mouse cursor. Don't pass input to the game while
-`panel.WantsGameInputBlocked()` is true; that's the Config tab's **Block Game Input** option. Also don't pass it
-when `ImGui::GetIO().WantCaptureMouse` / `WantCaptureKeyboard` is set.
-`panel.IsOpen()`, `SetOpen()` and `Toggle()` are available if you want your own open/close logic.
-
-The Misc > Overlays settings (name tags, highlight colors, map markers) are only stored by the panel. Your game
-reads them in `OnSettingsChanged(const PanelSettings&)` and draws them however it wants.
+When used through `add_subdirectory`, everything except the menu library defaults to OFF.
 
 ## Customising
 
 | What | Where |
 | --- | --- |
-| Tab names, icons, and which tab shows which page | `kTabs` in `src/foxyhud/admin_panel.cpp` |
-| Sub-tab icons and tooltips | `kPlayersSubTabs` / `kMiscSubTabs` in `src/foxyhud/admin_panel.cpp` |
+| Tab names, icons, which page each tab shows | `kTabs` in `src/foxyhud/admin_panel.cpp` |
+| Sub-tab icons and tooltips | `kLegitbotSubTabs` / `kVisualsSubTabs` in `src/foxyhud/admin_panel.cpp` |
 | Brand text | `panel.SetBranding("Name", ".suffix")` |
-| Colors | `MakeDefaultPalette()` in `src/foxyhud/theme.cpp`. The accent color can also be changed in the Config tab. |
+| Colors | `MakeDefaultPalette()` in `src/foxyhud/theme.cpp` (accent also in Config > Accent Override) |
 | Font sizes | `theme::LoadFonts()` in `src/foxyhud/theme.cpp` |
-| Ban reasons / durations | `src/foxyhud/panel_util.cpp` |
-| Saved settings | `PanelSettings` in `src/foxyhud/settings.h`. Add a field and add one line to `VisitFields()` in `settings.cpp`. |
+| Saved values | `PanelSettings` in `src/foxyhud/settings.h` + one line in `VisitFields()` in `settings.cpp` |
 
-**Adding a real page to a Maintenance tab** (for example Creator):
+**Giving a Maintenance tab real content** (for example Ragebot):
 
-1. Add a value to `Page` and a `RenderCreatorPage(const ImVec2& size)` method in `admin_panel.h`.
-2. Point the tab at it in `kTabs`, then add a `case` to the `switch` in `RenderMainWindow()`.
-3. If you want sub-tabs, give the tab a `SubTabDef` array in `kTabs`. The icon row then appears automatically,
-   and `sub_tab_[current_tab_]` tells your page which sub-page to draw (see `RenderMiscPage`).
-4. Build the page from the same widgets for the same look. `page_misc.cpp` is a short example:
-
-```cpp
-void AdminPanel::RenderCreatorPage(const ImVec2& size) {
-    const float gap = ui::Px(10), half = (size.x - gap) * 0.5f;
-    if (ui::BeginPanel("##creator_left", ImVec2(half, size.y))) {
-        ui::Section("Build tools");
-        ui::CheckboxColor("Show grid", &show_grid_, grid_color_);   // float grid_color_[4]
-        ui::SliderFloat("Grid size", &grid_size_, 0.25f, 4.0f, "%.2f m");
-        ui::Combo("Material", &material_, kMaterials, IM_ARRAYSIZE(kMaterials));
-    }
-    ui::EndPanel();
-    ImGui::SameLine(0, gap);
-    if (ui::BeginPanel("##creator_right", ImVec2(size.x - half - gap, size.y))) { /* ... */ }
-    ui::EndPanel();
-}
-```
+1. Add a value to `Page` and a `RenderRagebotPage(const ImVec2& size)` method in `admin_panel.h`.
+2. Point the tab at it in `kTabs` and add a `case` to the `switch` in `RenderMainWindow()`.
+3. For sub-tabs, give the tab a `SubTabDef` array in `kTabs`; `sub_tab_[current_tab_]` tells your page which one
+   is selected (see `RenderVisualsPage`).
+4. Build the page from the widgets below. `page_misc.cpp` is a short example.
 
 ### Widget reference (`src/foxyhud/widgets.h`)
 
@@ -184,29 +203,27 @@ void AdminPanel::RenderCreatorPage(const ImVec2& size) {
 | `SliderFloat`, `SliderInt`, `SliderIndex` | Gradient bar with the value shown in the middle |
 | `Combo`, `MultiCombo` | Dropdown; `MultiCombo` shows the selected items as a comma-separated list |
 | `InputText` | Text input, optional icon |
-| `Button` | Styles: `Default`, `Accent`, `Warning`, `Danger`, `Flat` (the Config action buttons), `Ghost` (text only) |
-| `ConfirmButton` | Needs a second click within 3 seconds (used for Delete and Unban) |
-| `SelectRow`, `ListRow` | Plain selectable row with an accent bar (config list) and an icon row |
+| `Button` | Styles: `Default`, `Accent`, `Warning`, `Danger`, `Flat`, `Ghost` |
+| `ConfirmButton` | Needs a second click within 3 seconds |
+| `SelectRow`, `ListRow` | Selectable list rows |
 | `KeyValue`, `Badge`, `Tooltip` | Info row, pill badge, hover tooltip |
 | `BeginModal` / `EndModal` | Themed modal dialog |
 
 ## Project layout
 
 ```
-src/foxyhud/          the panel (drop into your game)
-  admin_panel.*         window, header tabs, hotkeys, moderation flow, confirm dialog
-  page_players.cpp      Players tab (Online players, Reports, Ban list)
-  page_misc.cpp         Misc tab (General, Overlays & colors)
-  page_config.cpp       Config tab
-  page_maintenance.cpp  placeholder for unfinished tabs
-  overlay_windows.cpp   player counter, keybind list, chat log, admin log, report toasts
-  widgets.*             custom-drawn widgets
-  theme.*               palette, fonts, ImGui style
-  icons.*               vector icons drawn with ImDrawList
-  settings.*            PanelSettings + config file save/load/open folder
-  backend.h             IAdminBackend: the interface your game implements
-  fonts/                embedded Montserrat (Latin subset)
-src/demo/             standalone GLFW + OpenGL3 demo with a mock server
+src/foxyhud/            the menu (renderer independent)
+  admin_panel.*           window, header tabs, sub-tabs, keybinds
+  page_visuals.cpp        Visuals tab (Players, World, Chat)
+  page_misc.cpp           Misc tab
+  page_players.cpp        Players tab
+  page_config.cpp         Config tab
+  page_maintenance.cpp    placeholder for unfinished tabs
+  widgets.*  theme.*  icons.*
+  settings.*              every control's value + config save / load / open folder
+  renderers/              win32 + dx9 / dx10 / dx11 / dx12 helpers
+  fonts/                  embedded Montserrat (Latin subset)
+src/demo/               one demo per renderer (dx9, dx10, dx11, dx12, opengl)
 ```
 
 ## Licenses

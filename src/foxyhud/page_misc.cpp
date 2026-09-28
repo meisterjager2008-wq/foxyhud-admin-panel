@@ -7,22 +7,14 @@ namespace foxy {
 using ui::Px;
 
 namespace {
-const char* const kFilterActions[] = {"Censor message", "Warn player", "Mute for 5 minutes", "Kick player"};
-const char* const kLogEvents[]     = {"Joins", "Leaves", "Chat", "Admin actions", "Reports"};
-const char* const kCounterInfo[]   = {"Players", "Admins", "Reports", "Avg. ping"};
+const char* const kFilterActions[] = {"Censor Message", "Warn Player", "Mute For 5 Minutes", "Kick Player"};
+const char* const kLogEvents[]     = {"Joins", "Leaves", "Chat", "Admin Actions", "Reports"};
+const char* const kCounterInfo[]   = {"Players", "Admins", "Reports", "Avg. Ping"};
 const char* const kAlertSounds[]   = {"None", "Ping", "Chime", "Alarm"};
-const char* const kNameTagInfo[]   = {"Name", "ID", "Ping", "Distance"};
-const char* const kHighlightStyle[] = {"Outline", "Box", "Glow"};
 } // namespace
 
+// Design only: every control keeps its value in settings_, nothing is sent anywhere.
 void AdminPanel::RenderMiscPage(const ImVec2& size) {
-    if (sub_tab_[current_tab_] == 1)
-        RenderMiscOverlays(size);
-    else
-        RenderMiscGeneral(size);
-}
-
-void AdminPanel::RenderMiscGeneral(const ImVec2& size) {
     PanelSettings& s = settings_;
     bool changed = false;
 
@@ -31,120 +23,56 @@ void AdminPanel::RenderMiscGeneral(const ImVec2& size) {
 
     if (ui::BeginPanel("##misc_left", ImVec2(left_w, size.y))) {
         ui::Section("Server");
-        changed |= ui::Checkbox("Lock server", &s.lock_server);
-        ui::Tooltip("Nobody new can join until you unlock the server");
-        changed |= ui::Checkbox("Whitelist only", &s.whitelist_only);
-        changed |= ui::SliderInt("Max players", &s.max_players, 2, 128, "%d players");
-        changed |= ui::Checkbox("Kick AFK players", &s.afk_kick);
+        changed |= ui::Checkbox("Lock Server", &s.lock_server);
+        changed |= ui::Checkbox("Whitelist Only", &s.whitelist_only);
+        changed |= ui::SliderInt("Max Players", &s.max_players, 2, 128, "%d players");
+        changed |= ui::Checkbox("Kick AFK Players", &s.afk_kick);
         if (s.afk_kick)
-            changed |= ui::SliderInt("AFK timeout", &s.afk_minutes, 1, 60, "%d min");
-        changed |= ui::Checkbox("Announce joins & leaves", &s.announce_joins);
-        changed |= ui::Checkbox("Announce bans", &s.announce_bans);
+            changed |= ui::SliderInt("AFK Timeout", &s.afk_minutes, 1, 60, "%d min");
+        changed |= ui::Checkbox("Announce Joins & Leaves", &s.announce_joins);
+        changed |= ui::Checkbox("Announce Bans", &s.announce_bans);
 
         ui::Section("Chat");
-        changed |= ui::Checkbox("Chat filter", &s.chat_filter);
+        changed |= ui::Checkbox("Chat Filter", &s.chat_filter);
         if (s.chat_filter)
             changed |= ui::Combo("##filter_action", &s.filter_action, kFilterActions, IM_ARRAYSIZE(kFilterActions));
-        changed |= ui::Checkbox("Slow mode", &s.slow_mode);
+        changed |= ui::Checkbox("Slow Mode", &s.slow_mode);
         if (s.slow_mode)
-            changed |= ui::SliderFloat("Message cooldown", &s.slow_mode_seconds, 1.0f, 30.0f, "%.0f sec");
-        if (ui::Checkbox("Mute all players", &s.mute_all)) {
-            changed = true;
-            Log(s.mute_all ? AdminLogEntry::Kind::Warning : AdminLogEntry::Kind::Info, "%s global chat",
-                s.mute_all ? "Muted" : "Unmuted");
-        }
-        changed |= ui::MultiCombo("Log events", s.log_events, kLogEvents, IM_ARRAYSIZE(kLogEvents));
+            changed |= ui::SliderFloat("Message Cooldown", &s.slow_mode_seconds, 1.0f, 30.0f, "%.0f sec");
+        changed |= ui::Checkbox("Mute All Players", &s.mute_all);
+        changed |= ui::MultiCombo("Log Events", s.log_events, kLogEvents, IM_ARRAYSIZE(kLogEvents));
 
         ui::Section("Broadcast");
         const float send_w = Px(64);
-        bool send = ui::InputText("##broadcast", "Message to everyone...", broadcast_, sizeof(broadcast_),
-                                  ui::ItemWidth() - send_w - ImGui::GetStyle().ItemSpacing.x, Icon::Chat,
-                                  ImGuiInputTextFlags_EnterReturnsTrue);
+        ui::InputText("##broadcast", "Message to everyone...", broadcast_, sizeof(broadcast_),
+                      ui::ItemWidth() - send_w - ImGui::GetStyle().ItemSpacing.x, Icon::Chat);
         ImGui::SameLine();
-        send |= ui::Button("Send", ImVec2(send_w, ImGui::GetItemRectSize().y), ui::ButtonStyle::Accent);
-        ui::Checkbox("Show as banner", &broadcast_banner_);
-        if (send && broadcast_[0]) {
-            backend_.Broadcast(broadcast_, broadcast_banner_);
-            Log(AdminLogEntry::Kind::Success, "Broadcast: %s", broadcast_);
-            broadcast_[0] = '\0';
-        }
+        ui::Button("Send", ImVec2(send_w, ImGui::GetItemRectSize().y), ui::ButtonStyle::Accent);
+        changed |= ui::Checkbox("Show As Banner", &s.broadcast_banner);
     }
     ui::EndPanel();
 
     ImGui::SameLine(0.0f, gap);
     if (ui::BeginPanel("##misc_right", ImVec2(size.x - left_w - gap, size.y))) {
         ui::Section("Admin");
-        changed |= ui::Checkbox("Admin tag", &s.admin_tag);
-        ui::Tooltip("Shows your [ADMIN] tag in chat and above your character");
+        changed |= ui::Checkbox("Admin Tag", &s.admin_tag);
         changed |= ui::CheckboxKeybind("Noclip", &s.noclip, &s.noclip_key);
         changed |= ui::CheckboxKeybind("Invisible", &s.invisible, &s.invisible_key);
-        changed |= ui::CheckboxKeybind("God mode", &s.god_mode, &s.god_mode_key);
-        changed |= ui::Checkbox("Player IDs above heads", &s.overhead_ids);
+        changed |= ui::CheckboxKeybind("God Mode", &s.god_mode, &s.god_mode_key);
+        changed |= ui::Checkbox("Player IDs Above Heads", &s.overhead_ids);
 
         ui::Section("Windows");
-        changed |= ui::Checkbox("Admin log", &s.win_admin_log);
-        changed |= ui::Checkbox("Chat log", &s.win_chat_log);
-        changed |= ui::Checkbox("Keybind list", &s.win_keybinds);
-        changed |= ui::Checkbox("Player counter", &s.win_player_counter);
+        changed |= ui::Checkbox("Admin Log", &s.win_admin_log);
+        changed |= ui::Checkbox("Chat Log", &s.win_chat_log);
+        changed |= ui::Checkbox("Keybind List", &s.win_keybinds);
+        changed |= ui::Checkbox("Player Counter", &s.win_player_counter);
         if (s.win_player_counter)
             changed |= ui::MultiCombo("##counter_info", s.counter_info, kCounterInfo, IM_ARRAYSIZE(kCounterInfo));
-        changed |= ui::Checkbox("Report alerts", &s.report_alerts);
+        changed |= ui::Checkbox("Report Alerts", &s.report_alerts);
         if (s.report_alerts) {
             changed |= ui::Combo("##alert_sound", &s.alert_sound, kAlertSounds, IM_ARRAYSIZE(kAlertSounds));
             changed |= ui::SliderFloat("Volume", &s.alert_volume, 0.0f, 1.0f, "%.2f");
         }
-    }
-    ui::EndPanel();
-
-    if (changed)
-        settings_dirty_ = true;
-}
-
-// Colors and toggles for things your game draws for admins (name tags,
-// highlights, map markers) plus the chat colors used by the Chat log window.
-void AdminPanel::RenderMiscOverlays(const ImVec2& size) {
-    PanelSettings& s = settings_;
-    bool changed = false;
-
-    const float gap = Px(10);
-    const float left_w = (float)(int)((size.x - gap) * 0.5f);
-
-    if (ui::BeginPanel("##overlays_left", ImVec2(left_w, size.y))) {
-        ui::Section("Players");
-        changed |= ui::CheckboxColor("Name tags", &s.name_tags, s.name_tag_color);
-        if (s.name_tags)
-            changed |= ui::MultiCombo("##name_tag_info", s.name_tag_info, kNameTagInfo, IM_ARRAYSIZE(kNameTagInfo));
-        float* const reported_cols[] = {s.reported_color, s.flagged_color};
-        changed |= ui::CheckboxColors("Highlight reported", &s.highlight_reported, reported_cols, 2);
-        ui::Tooltip("First color: players with open reports. Second color: flagged players.");
-        if (s.highlight_reported)
-            changed |= ui::Combo("##highlight_style", &s.highlight_style, kHighlightStyle, IM_ARRAYSIZE(kHighlightStyle));
-        changed |= ui::CheckboxColor("Highlight frozen", &s.highlight_frozen, s.frozen_color);
-        changed |= ui::CheckboxColor("Highlight admins", &s.highlight_admins, s.admin_color);
-        changed |= ui::SliderInt("Max distance", &s.overlay_distance, 10, 1000, "%d m");
-
-        ui::Section("Map");
-        changed |= ui::CheckboxColor("Player blips", &s.map_blips, s.blip_color);
-        changed |= ui::CheckboxColor("Report markers", &s.report_markers, s.marker_color);
-        ui::Tooltip("Marks where a reported player was when the report was filed");
-    }
-    ui::EndPanel();
-
-    ImGui::SameLine(0.0f, gap);
-    if (ui::BeginPanel("##overlays_right", ImVec2(size.x - left_w - gap, size.y))) {
-        ui::Section("Chat colors");
-        changed |= ui::LabelColor("Admin messages", s.chat_admin_color);
-        changed |= ui::LabelColor("Announcements", s.chat_announce_color);
-        changed |= ui::LabelColor("Private messages", s.chat_pm_color);
-        changed |= ui::LabelColor("System messages", s.chat_system_color);
-        changed |= ui::LabelColor("Filtered messages", s.chat_filtered_color);
-
-        ui::Section("Alerts");
-        changed |= ui::Checkbox("Report toasts", &s.report_toasts);
-        ui::Tooltip("Pop-up in the corner when a new report comes in");
-        if (s.report_toasts)
-            changed |= ui::SliderFloat("Toast duration", &s.toast_seconds, 2.0f, 20.0f, "%.0f sec");
-        changed |= ui::CheckboxColor("Flash screen on report", &s.report_flash, s.flash_color);
     }
     ui::EndPanel();
 

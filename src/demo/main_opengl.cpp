@@ -1,47 +1,23 @@
-// Standalone demo: opens a window, fakes a game frame in the background and
-// draws the admin panel on top. Press INSERT to toggle the panel.
+// OpenGL 3 demo (Windows / Linux / macOS): a window with the menu and nothing else.
+// Press INSERT to toggle the menu.
 
 #include <cstdio>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include "foxyhud/admin_panel.h"
-#include "foxyhud/theme.h"
+#include "demo_common.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "mock_backend.h"
 
 namespace {
 
 void GlfwError(int code, const char* description) { std::fprintf(stderr, "GLFW error %d: %s\n", code, description); }
 
-// Stand-in for your game's frame, so the panel has something behind it.
-void DrawFakeGameScene() {
-    ImDrawList* dl = ImGui::GetBackgroundDrawList();
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const ImVec2 a = vp->Pos;
-    const ImVec2 b(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y);
-    dl->AddRectFilledMultiColor(a, b, IM_COL32(38, 48, 68, 255), IM_COL32(38, 48, 68, 255), IM_COL32(12, 14, 20, 255),
-                                IM_COL32(12, 14, 20, 255));
-
-    const float cx = a.x + vp->Size.x * 0.5f;
-    const float horizon = a.y + vp->Size.y * 0.62f;
-    for (int i = 0; i <= 24; ++i) {
-        const float x = a.x + vp->Size.x * i / 24.0f;
-        dl->AddLine(ImVec2(x, horizon), ImVec2(cx + (x - cx) * 3.0f, b.y), IM_COL32(90, 130, 210, 26));
-    }
-    for (int i = 1; i <= 10; ++i) {
-        const float t = i / 10.0f;
-        const float y = horizon + (b.y - horizon) * t * t;
-        dl->AddLine(ImVec2(a.x, y), ImVec2(b.x, y), IM_COL32(90, 130, 210, 20));
-    }
-
-    const char* hint = "Your game renders here  -  press INSERT to toggle the admin panel";
-    const ImVec2 ts = ImGui::CalcTextSize(hint);
-    dl->AddText(ImVec2(cx - ts.x * 0.5f, b.y - ts.y - 16.0f), IM_COL32(255, 255, 255, 90), hint);
-}
+using PFN_ClearColor = void (*)(float, float, float, float);
+using PFN_Clear = void (*)(unsigned int);
+constexpr unsigned int kColorBufferBit = 0x00004000;  // GL_COLOR_BUFFER_BIT
 
 } // namespace
 
@@ -77,26 +53,20 @@ int main(int, char**) {
         }
     }
 
-    GLFWwindow* window = glfwCreateWindow(width, height, "FoxyHUD Admin Panel - Demo", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(width, height, "FoxyHUD Menu - OpenGL 3", nullptr, nullptr);
     if (!window) {
         glfwTerminate();
         return 1;
     }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
+    auto glClearColorFn = reinterpret_cast<PFN_ClearColor>(glfwGetProcAddress("glClearColor"));
+    auto glClearFn = reinterpret_cast<PFN_Clear>(glfwGetProcAddress("glClear"));
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::GetIO().IniFilename = "foxyhud_demo.ini";
-
-    // 1) Fonts + style, 2) platform/renderer backends (your game uses its own, e.g. DX11).
-    foxy::theme::LoadFonts(scale);
-    foxy::theme::Apply(scale);
+    demo::InitImGui(scale);
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
-
-    MockBackend backend;
-    foxy::AdminPanel panel(backend);
+    foxy::AdminPanel panel;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -108,12 +78,11 @@ int main(int, char**) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-        backend.Update(ImGui::GetIO().DeltaTime);
-        DrawFakeGameScene();
-        panel.Render();
-
+        demo::DrawFrame(panel);
         ImGui::Render();
+
+        glClearColorFn(demo::kClearColor[0], demo::kClearColor[1], demo::kClearColor[2], 1.0f);
+        glClearFn(kColorBufferBit);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
     }

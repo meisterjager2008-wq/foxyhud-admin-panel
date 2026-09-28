@@ -1,10 +1,5 @@
 #include "foxyhud/admin_panel.h"
 
-#include <cstdarg>
-#include <cstdio>
-#include <ctime>
-
-#include "foxyhud/panel_util.h"
 #include "foxyhud/theme.h"
 #include "foxyhud/widgets.h"
 #include "imgui_internal.h"
@@ -14,29 +9,28 @@ namespace foxy {
 using theme::Col;
 using ui::Px;
 
-// Sub tabs: the icon buttons centered under the header. The order here is the
-// order of the sub pages in page_players.cpp / page_misc.cpp.
-const AdminPanel::SubTabDef kPlayersSubTabs[] = {
-    {"Online players", Icon::Users},
-    {"Reports", Icon::Flag},
-    {"Ban list", Icon::Ban},
+// Sub tabs: the icon buttons centered under the header, in page order.
+const AdminPanel::SubTabDef kLegitbotSubTabs[] = {
+    {"General", Icon::Crosshair},
+    {"Advanced", Icon::Target},
 };
-const AdminPanel::SubTabDef kMiscSubTabs[] = {
-    {"General", Icon::Sliders},
-    {"Overlays & colors", Icon::EyeFrame},
+const AdminPanel::SubTabDef kVisualsSubTabs[] = {
+    {"Players", Icon::EyeFrame},
+    {"World", Icon::Globe},
+    {"Chat", Icon::Chat},
 };
 
 // Header tabs, left to right. Tabs mapped to Page::Maintenance show the
 // "Maintenance" placeholder until they get real content.
 const AdminPanel::TabDef AdminPanel::kTabs[] = {
-    {"Players",  Icon::User,    Page::Players,     kPlayersSubTabs, IM_ARRAYSIZE(kPlayersSubTabs)},
-    {"Creator",  Icon::Pencil,  Page::Maintenance, nullptr, 0},
-    {"Visitors", Icon::Eye,     Page::Maintenance, nullptr, 0},
-    {"Misc",     Icon::Grid,    Page::Misc,        kMiscSubTabs, IM_ARRAYSIZE(kMiscSubTabs)},
-    {"Helper",   Icon::Help,    Page::Maintenance, nullptr, 0},
-    {"Players",  Icon::Users,   Page::Maintenance, nullptr, 0},
-    {"Painting", Icon::Palette, Page::Maintenance, nullptr, 0},
-    {"Config",   Icon::Gear,    Page::Config,      nullptr, 0},
+    {"Ragebot",   Icon::Gauge,     Page::Maintenance, nullptr, 0},
+    {"Legitbot",  Icon::Crosshair, Page::Maintenance, kLegitbotSubTabs, IM_ARRAYSIZE(kLegitbotSubTabs)},
+    {"Visuals",   Icon::EyeFrame,  Page::Visuals,     kVisualsSubTabs, IM_ARRAYSIZE(kVisualsSubTabs)},
+    {"Misc",      Icon::Cog,       Page::Misc,        nullptr, 0},
+    {"Helper",    Icon::Help,      Page::Maintenance, nullptr, 0},
+    {"Players",   Icon::EyeFrame,  Page::Players,     nullptr, 0},
+    {"Inventory", Icon::Palette,   Page::Maintenance, nullptr, 0},
+    {"Config",    Icon::Gear,      Page::Config,      nullptr, 0},
 };
 const int AdminPanel::kTabCount = IM_ARRAYSIZE(AdminPanel::kTabs);
 
@@ -53,12 +47,13 @@ constexpr float kSubTabSize     = 24.0f;
 constexpr float kSubTabGap      = 6.0f;
 } // namespace
 
-AdminPanel::AdminPanel(IAdminBackend& backend, std::string config_dir)
-    : backend_(backend), sub_tab_(kTabCount, 0), config_dir_(std::move(config_dir)) {
+AdminPanel::AdminPanel(std::string config_dir) : sub_tab_(kTabCount, 0), config_dir_(std::move(config_dir)) {
     IM_ASSERT(theme::GetFonts().body && "Call foxy::theme::LoadFonts() before creating the AdminPanel");
+    for (int i = 0; i < kTabCount; ++i)  // open on Misc, like the reference
+        if (kTabs[i].page == Page::Misc)
+            current_tab_ = i;
     RefreshConfigs();
-    settings_dirty_ = true;  // first frame pushes settings to the theme and the backend
-    Log(AdminLogEntry::Kind::Info, "Admin panel ready");
+    settings_dirty_ = true;  // first frame pushes the settings into the theme
 }
 
 void AdminPanel::SetBranding(std::string name, std::string suffix) {
@@ -72,20 +67,8 @@ void AdminPanel::ApplySettings() {
                          : theme::DefaultAccent());
     ui::SetAnimationsEnabled(settings_.animations);
     ui::SetTooltipsEnabled(settings_.tooltips);
-    backend_.OnSettingsChanged(settings_);
-}
-
-void AdminPanel::Log(AdminLogEntry::Kind kind, const char* fmt, ...) {
-    char buf[512];
-    va_list args;
-    va_start(args, fmt);
-    std::vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-    log_.push_back({detail::ClockTime(static_cast<double>(std::time(nullptr))), buf, kind});
-    if (log_.size() > 500) {
-        log_.erase(log_.begin(), log_.begin() + 100);
-        log_seen_ = 0;
-    }
+    if (on_settings_changed_)
+        on_settings_changed_(settings_);
 }
 
 void AdminPanel::Render() {
@@ -100,7 +83,6 @@ void AdminPanel::Render() {
     if (!settings_.animations || ImFabs(target - open_anim_) < 0.01f)
         open_anim_ = target;
 
-    RenderOverlayWindows();
     if (open_anim_ > 0.0f)
         RenderMainWindow();
 
@@ -110,6 +92,7 @@ void AdminPanel::Render() {
     }
 }
 
+// The menu key toggles the menu; a keybind next to a checkbox toggles that checkbox.
 void AdminPanel::HandleHotkeys() {
     if (ui::IsCapturingKeybind() || ImGui::GetIO().WantTextInput)
         return;
@@ -118,27 +101,24 @@ void AdminPanel::HandleHotkeys() {
     if (pressed(settings_.menu_key))
         Toggle();
 
-    struct Hotkey {
-        bool*       value;
-        int         key;
-        const char* name;
+    PanelSettings& s = settings_;
+    const std::pair<bool*, int> hotkeys[] = {
+        {&s.noclip, s.noclip_key},
+        {&s.invisible, s.invisible_key},
+        {&s.god_mode, s.god_mode_key},
+        {&s.quick_freeze, s.quick_freeze_key},
+        {&s.quick_spectate, s.quick_spectate_key},
     };
-    const Hotkey hotkeys[] = {
-        {&settings_.noclip, settings_.noclip_key, "Noclip"},
-        {&settings_.invisible, settings_.invisible_key, "Invisible"},
-        {&settings_.god_mode, settings_.god_mode_key, "God mode"},
-    };
-    for (const Hotkey& h : hotkeys) {
-        if (!pressed(h.key))
-            continue;
-        *h.value = !*h.value;
-        settings_dirty_ = true;
-        Log(AdminLogEntry::Kind::Info, "%s %s", h.name, *h.value ? "enabled" : "disabled");
+    for (const auto& [value, key] : hotkeys) {
+        if (pressed(key)) {
+            *value = !*value;
+            settings_dirty_ = true;
+        }
     }
 }
 
-// Closes dropdowns / the confirm modal that belong to the panel, so a hidden
-// modal can't keep blocking input after the menu is toggled off.
+// Closes dropdowns / color pickers that belong to the menu, so nothing stays
+// open (or blocks input) after the menu is toggled off.
 void AdminPanel::ClosePanelPopups() {
     ImGuiContext& g = *ImGui::GetCurrentContext();
     ImGuiWindow* main_window = ImGui::FindWindowByName(kMainWindowName);
@@ -165,7 +145,7 @@ float AdminPanel::MinWindowWidth() const {
     return w + Px(kMargin);
 }
 
-void AdminPanel::RenderHeader(const ImVec2& pos, float /*width*/) {
+void AdminPanel::RenderHeader(const ImVec2& pos) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const Palette& c = theme::Colors();
     const Fonts& f = theme::GetFonts();
@@ -245,7 +225,7 @@ void AdminPanel::RenderMainWindow() {
     if (visible) {
         const ImVec2 pos = ImGui::GetWindowPos();
         const ImVec2 size = ImGui::GetWindowSize();
-        RenderHeader(pos, size.x);
+        RenderHeader(pos);
 
         const TabDef& tab = kTabs[current_tab_];
         float content_top = Px(kContentTop);
@@ -267,6 +247,7 @@ void AdminPanel::RenderMainWindow() {
         ImGui::PushID(current_tab_ * 100 + sub_tab_[current_tab_]);
         switch (tab.page) {
         case Page::Players:     RenderPlayersPage(content_size); break;
+        case Page::Visuals:     RenderVisualsPage(content_size); break;
         case Page::Misc:        RenderMiscPage(content_size); break;
         case Page::Config:      RenderConfigPage(content_size); break;
         case Page::Maintenance: RenderMaintenancePage(content_size, tab.label); break;
@@ -274,85 +255,9 @@ void AdminPanel::RenderMainWindow() {
         ImGui::PopID();
         ImGui::EndGroup();
         ImGui::PopStyleVar();
-
-        if (open_confirm_) {
-            ImGui::OpenPopup("##foxy_confirm");
-            open_confirm_ = false;
-        }
-        RenderConfirmModal(ImVec2(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f));
     }
     ImGui::End();
     ImGui::PopStyleVar();  // Alpha
-}
-
-void AdminPanel::RequestModeration(const ModerationRequest& req) {
-    const bool confirm = (req.action == ModerationAction::Ban && settings_.confirm_bans) ||
-                         (req.action == ModerationAction::Kick && settings_.confirm_kicks);
-    if (confirm) {
-        pending_ = req;
-        open_confirm_ = true;
-    } else {
-        ExecuteModeration(req);
-    }
-}
-
-void AdminPanel::ExecuteModeration(const ModerationRequest& req) {
-    backend_.Moderate(req);
-    switch (req.action) {
-    case ModerationAction::Warn:
-        Log(AdminLogEntry::Kind::Warning, "Warned %s (%s)", req.player_name.c_str(), req.reason.c_str());
-        break;
-    case ModerationAction::Kick:
-        Log(AdminLogEntry::Kind::Warning, "Kicked %s (%s)", req.player_name.c_str(), req.reason.c_str());
-        note_[0] = '\0';
-        break;
-    case ModerationAction::Ban:
-        Log(AdminLogEntry::Kind::Danger, "Banned %s - %s (%s)%s", req.player_name.c_str(),
-            detail::FormatDuration(req.duration_minutes).c_str(), req.reason.c_str(), req.ip_ban ? " + IP ban" : "");
-        note_[0] = '\0';
-        break;
-    }
-}
-
-void AdminPanel::RenderConfirmModal(const ImVec2& center) {
-    if (!ui::BeginModal("##foxy_confirm", center))
-        return;
-
-    const Palette& c = theme::Colors();
-    const bool ban = pending_.action == ModerationAction::Ban;
-
-    ImGui::Dummy(ImVec2(Px(320), 0.0f));
-    ImGui::SetCursorPosY(ImGui::GetStyle().WindowPadding.y);
-    theme::PushFont(theme::GetFonts().bold);
-    ui::TextColored(ban ? c.danger : c.warning, "%s", ban ? "Ban player?" : "Kick player?");
-    theme::PopFont();
-    ui::TextDim("%s %s (#%s)", ban ? "You are about to ban" : "You are about to kick", pending_.player_name.c_str(),
-                detail::IdString(pending_.player_id).c_str());
-    ui::Spacing(4);
-
-    ui::KeyValue("Reason", pending_.reason.c_str());
-    if (ban) {
-        ui::KeyValue("Duration", detail::FormatDuration(pending_.duration_minutes).c_str());
-        ui::KeyValue("IP ban", pending_.ip_ban ? "Yes" : "No");
-    }
-    if (!pending_.note.empty()) {
-        ui::TextDim("Note");
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + Px(320));
-        ImGui::TextUnformatted(pending_.note.c_str());
-        ImGui::PopTextWrapPos();
-    }
-    ui::Spacing(6);
-
-    const float bw = ui::SplitWidth(2, ImGui::GetContentRegionAvail().x);
-    if (ui::Button("Cancel", ImVec2(bw, Px(26))) || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
-        ImGui::CloseCurrentPopup();
-    ImGui::SameLine();
-    if (ui::Button(ban ? "Confirm ban" : "Confirm kick", ImVec2(bw, Px(26)),
-                   ban ? ui::ButtonStyle::Danger : ui::ButtonStyle::Warning)) {
-        ExecuteModeration(pending_);
-        ImGui::CloseCurrentPopup();
-    }
-    ui::EndModal();
 }
 
 void AdminPanel::RefreshConfigs() {

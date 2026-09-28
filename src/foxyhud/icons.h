@@ -28,6 +28,11 @@ enum class Icon {
     Ban,        // circle with a slash
     Sliders,
     EyeFrame,   // eye inside corner brackets
+    Gauge,      // circle with a dial
+    Crosshair,  // four ticks around a dot
+    Target,     // concentric circles
+    Globe,
+    Cog,        // small 6-tooth gear
 };
 
 // `size` is the edge of the square the icon fits in, `rotation` is in radians

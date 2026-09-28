@@ -26,6 +26,19 @@ struct Pen {
     }
 };
 
+void DrawGear(const Pen& p, int teeth, float r_out, float r_in, float hole, float rotation) {
+    const float step = 2.0f * kPi / teeth;
+    for (int i = 0; i < teeth; ++i) {
+        const float a = rotation + i * step;
+        p.dl->PathLineTo(p.Polar(r_in, a - step * 0.26f));
+        p.dl->PathLineTo(p.Polar(r_out, a - step * 0.15f));
+        p.dl->PathLineTo(p.Polar(r_out, a + step * 0.15f));
+        p.dl->PathLineTo(p.Polar(r_in, a + step * 0.26f));
+    }
+    p.dl->PathStroke(p.col, ImDrawFlags_Closed, p.t);
+    p.Circle(0.0f, 0.0f, hole);
+}
+
 void DrawPerson(const Pen& p, float x, float y, float k) {
     p.Circle(x, y - 0.20f * k, 0.21f * k);
     p.Arc(x, y + 0.50f * k, 0.36f * k, kPi, 2.0f * kPi);
@@ -100,20 +113,42 @@ void DrawIcon(ImDrawList* dl, Icon icon, const ImVec2& center, float size, ImU32
         p.Circle(0.12f, 0.20f, 0.09f);
         break;
 
-    case Icon::Gear: {
-        constexpr int kTeeth = 8;
-        const float step = 2.0f * kPi / kTeeth, r_out = 0.49f, r_in = 0.35f;
-        for (int i = 0; i < kTeeth; ++i) {
-            const float a = rotation + i * step;
-            dl->PathLineTo(p.Polar(r_in, a - step * 0.26f));
-            dl->PathLineTo(p.Polar(r_out, a - step * 0.15f));
-            dl->PathLineTo(p.Polar(r_out, a + step * 0.15f));
-            dl->PathLineTo(p.Polar(r_in, a + step * 0.26f));
-        }
-        dl->PathStroke(col, ImDrawFlags_Closed, p.t);
-        p.Circle(0.0f, 0.0f, 0.14f);
+    case Icon::Gear:
+        DrawGear(p, 8, 0.49f, 0.35f, 0.14f, rotation);
         break;
-    }
+
+    case Icon::Cog:
+        DrawGear(p, 6, 0.48f, 0.32f, 0.16f, rotation + kPi / 6.0f);
+        break;
+
+    case Icon::Gauge:
+        p.Circle(0.0f, 0.0f, 0.46f);
+        p.Arc(0.0f, 0.06f, 0.26f, 1.15f * kPi, 1.85f * kPi);
+        p.Line(0.0f, 0.06f, 0.16f, -0.12f);
+        p.Dot(0.0f, 0.06f, 0.07f);
+        break;
+
+    case Icon::Crosshair:
+        p.Line(0.0f, -0.48f, 0.0f, -0.20f);
+        p.Line(0.0f, 0.20f, 0.0f, 0.48f);
+        p.Line(-0.48f, 0.0f, -0.20f, 0.0f);
+        p.Line(0.20f, 0.0f, 0.48f, 0.0f);
+        p.Dot(0.0f, 0.0f, 0.07f);
+        break;
+
+    case Icon::Target:
+        p.Circle(0.0f, 0.0f, 0.45f);
+        p.Circle(0.0f, 0.0f, 0.24f);
+        p.Dot(0.0f, 0.0f, 0.07f);
+        break;
+
+    case Icon::Globe:
+        p.Circle(0.0f, 0.0f, 0.46f);
+        dl->AddEllipse(center, ImVec2(0.20f * size, 0.46f * size), col, 0.0f, 0, p.t);
+        p.Line(-0.46f, 0.0f, 0.46f, 0.0f);
+        p.Line(-0.38f, -0.24f, 0.38f, -0.24f);
+        p.Line(-0.38f, 0.24f, 0.38f, 0.24f);
+        break;
 
     case Icon::Search:
         p.Circle(-0.08f, -0.08f, 0.30f);
