@@ -11,9 +11,18 @@ const char* const kFilterActions[] = {"Censor message", "Warn player", "Mute for
 const char* const kLogEvents[]     = {"Joins", "Leaves", "Chat", "Admin actions", "Reports"};
 const char* const kCounterInfo[]   = {"Players", "Admins", "Reports", "Avg. ping"};
 const char* const kAlertSounds[]   = {"None", "Ping", "Chime", "Alarm"};
+const char* const kNameTagInfo[]   = {"Name", "ID", "Ping", "Distance"};
+const char* const kHighlightStyle[] = {"Outline", "Box", "Glow"};
 } // namespace
 
 void AdminPanel::RenderMiscPage(const ImVec2& size) {
+    if (sub_tab_[current_tab_] == 1)
+        RenderMiscOverlays(size);
+    else
+        RenderMiscGeneral(size);
+}
+
+void AdminPanel::RenderMiscGeneral(const ImVec2& size) {
     PanelSettings& s = settings_;
     bool changed = false;
 
@@ -84,6 +93,58 @@ void AdminPanel::RenderMiscPage(const ImVec2& size) {
             changed |= ui::Combo("##alert_sound", &s.alert_sound, kAlertSounds, IM_ARRAYSIZE(kAlertSounds));
             changed |= ui::SliderFloat("Volume", &s.alert_volume, 0.0f, 1.0f, "%.2f");
         }
+    }
+    ui::EndPanel();
+
+    if (changed)
+        settings_dirty_ = true;
+}
+
+// Colors and toggles for things your game draws for admins (name tags,
+// highlights, map markers) plus the chat colors used by the Chat log window.
+void AdminPanel::RenderMiscOverlays(const ImVec2& size) {
+    PanelSettings& s = settings_;
+    bool changed = false;
+
+    const float gap = Px(10);
+    const float left_w = (float)(int)((size.x - gap) * 0.5f);
+
+    if (ui::BeginPanel("##overlays_left", ImVec2(left_w, size.y))) {
+        ui::Section("Players");
+        changed |= ui::CheckboxColor("Name tags", &s.name_tags, s.name_tag_color);
+        if (s.name_tags)
+            changed |= ui::MultiCombo("##name_tag_info", s.name_tag_info, kNameTagInfo, IM_ARRAYSIZE(kNameTagInfo));
+        float* const reported_cols[] = {s.reported_color, s.flagged_color};
+        changed |= ui::CheckboxColors("Highlight reported", &s.highlight_reported, reported_cols, 2);
+        ui::Tooltip("First color: players with open reports. Second color: flagged players.");
+        if (s.highlight_reported)
+            changed |= ui::Combo("##highlight_style", &s.highlight_style, kHighlightStyle, IM_ARRAYSIZE(kHighlightStyle));
+        changed |= ui::CheckboxColor("Highlight frozen", &s.highlight_frozen, s.frozen_color);
+        changed |= ui::CheckboxColor("Highlight admins", &s.highlight_admins, s.admin_color);
+        changed |= ui::SliderInt("Max distance", &s.overlay_distance, 10, 1000, "%d m");
+
+        ui::Section("Map");
+        changed |= ui::CheckboxColor("Player blips", &s.map_blips, s.blip_color);
+        changed |= ui::CheckboxColor("Report markers", &s.report_markers, s.marker_color);
+        ui::Tooltip("Marks where a reported player was when the report was filed");
+    }
+    ui::EndPanel();
+
+    ImGui::SameLine(0.0f, gap);
+    if (ui::BeginPanel("##overlays_right", ImVec2(size.x - left_w - gap, size.y))) {
+        ui::Section("Chat colors");
+        changed |= ui::LabelColor("Admin messages", s.chat_admin_color);
+        changed |= ui::LabelColor("Announcements", s.chat_announce_color);
+        changed |= ui::LabelColor("Private messages", s.chat_pm_color);
+        changed |= ui::LabelColor("System messages", s.chat_system_color);
+        changed |= ui::LabelColor("Filtered messages", s.chat_filtered_color);
+
+        ui::Section("Alerts");
+        changed |= ui::Checkbox("Report toasts", &s.report_toasts);
+        ui::Tooltip("Pop-up in the corner when a new report comes in");
+        if (s.report_toasts)
+            changed |= ui::SliderFloat("Toast duration", &s.toast_seconds, 2.0f, 20.0f, "%.0f sec");
+        changed |= ui::CheckboxColor("Flash screen on report", &s.report_flash, s.flash_color);
     }
     ui::EndPanel();
 

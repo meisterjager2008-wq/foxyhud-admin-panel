@@ -14,31 +14,47 @@ namespace foxy {
 using theme::Col;
 using ui::Px;
 
+// Sub tabs: the icon buttons centered under the header. The order here is the
+// order of the sub pages in page_players.cpp / page_misc.cpp.
+const AdminPanel::SubTabDef kPlayersSubTabs[] = {
+    {"Online players", Icon::Users},
+    {"Reports", Icon::Flag},
+    {"Ban list", Icon::Ban},
+};
+const AdminPanel::SubTabDef kMiscSubTabs[] = {
+    {"General", Icon::Sliders},
+    {"Overlays & colors", Icon::EyeFrame},
+};
+
 // Header tabs, left to right. Tabs mapped to Page::Maintenance show the
 // "Maintenance" placeholder until they get real content.
 const AdminPanel::TabDef AdminPanel::kTabs[] = {
-    {"Players",  Icon::User,    Page::Players},
-    {"Creator",  Icon::Pencil,  Page::Maintenance},
-    {"Visitors", Icon::Eye,     Page::Maintenance},
-    {"Misc",     Icon::Grid,    Page::Misc},
-    {"Helper",   Icon::Help,    Page::Maintenance},
-    {"Players",  Icon::Users,   Page::Maintenance},
-    {"Painting", Icon::Palette, Page::Maintenance},
-    {"Config",   Icon::Gear,    Page::Config},
+    {"Players",  Icon::User,    Page::Players,     kPlayersSubTabs, IM_ARRAYSIZE(kPlayersSubTabs)},
+    {"Creator",  Icon::Pencil,  Page::Maintenance, nullptr, 0},
+    {"Visitors", Icon::Eye,     Page::Maintenance, nullptr, 0},
+    {"Misc",     Icon::Grid,    Page::Misc,        kMiscSubTabs, IM_ARRAYSIZE(kMiscSubTabs)},
+    {"Helper",   Icon::Help,    Page::Maintenance, nullptr, 0},
+    {"Players",  Icon::Users,   Page::Maintenance, nullptr, 0},
+    {"Painting", Icon::Palette, Page::Maintenance, nullptr, 0},
+    {"Config",   Icon::Gear,    Page::Config,      nullptr, 0},
 };
 const int AdminPanel::kTabCount = IM_ARRAYSIZE(AdminPanel::kTabs);
 
 namespace {
 constexpr const char* kMainWindowName = "##foxyhud_admin_panel";
-constexpr float kHeaderCenterY = 24.0f;  // design px from the window top
-constexpr float kContentTop    = 50.0f;
-constexpr float kMargin        = 12.0f;
-constexpr float kTabHeight     = 26.0f;
-constexpr float kTabGap        = 4.0f;
+constexpr float kHeaderCenterY  = 24.0f;  // design px from the window top
+constexpr float kContentTop     = 50.0f;  // tabs without sub tabs
+constexpr float kSubTabCenterY  = 60.0f;
+constexpr float kSubContentTop  = 78.0f;  // tabs with sub tabs
+constexpr float kMargin         = 12.0f;
+constexpr float kTabHeight      = 26.0f;
+constexpr float kTabGap         = 4.0f;
+constexpr float kSubTabSize     = 24.0f;
+constexpr float kSubTabGap      = 6.0f;
 } // namespace
 
 AdminPanel::AdminPanel(IAdminBackend& backend, std::string config_dir)
-    : backend_(backend), config_dir_(std::move(config_dir)) {
+    : backend_(backend), sub_tab_(kTabCount, 0), config_dir_(std::move(config_dir)) {
     IM_ASSERT(theme::GetFonts().body && "Call foxy::theme::LoadFonts() before creating the AdminPanel");
     RefreshConfigs();
     settings_dirty_ = true;  // first frame pushes settings to the theme and the backend
@@ -51,7 +67,9 @@ void AdminPanel::SetBranding(std::string name, std::string suffix) {
 }
 
 void AdminPanel::ApplySettings() {
-    theme::SetAccent(ImVec4(settings_.accent[0], settings_.accent[1], settings_.accent[2], 1.0f));
+    theme::SetAccent(settings_.accent_override
+                         ? ImVec4(settings_.accent[0], settings_.accent[1], settings_.accent[2], 1.0f)
+                         : theme::DefaultAccent());
     ui::SetAnimationsEnabled(settings_.animations);
     ui::SetTooltipsEnabled(settings_.tooltips);
     backend_.OnSettingsChanged(settings_);
@@ -167,12 +185,37 @@ void AdminPanel::RenderHeader(const ImVec2& pos, float /*width*/) {
         if (i > 0)
             ImGui::SameLine(0.0f, Px(kTabGap));
         ImGui::PushID(i);
-        if (ui::Tab(kTabs[i].label, kTabs[i].icon, i == current_tab_) && i != current_tab_) {
-            current_tab_ = i;
-            tab_changed_at_ = ImGui::GetTime();
-        }
+        if (ui::Tab(kTabs[i].label, kTabs[i].icon, i == current_tab_) && i != current_tab_)
+            SelectTab(i);
         ImGui::PopID();
     }
+}
+
+void AdminPanel::RenderSubTabs(const ImVec2& pos, float width) {
+    const TabDef& tab = kTabs[current_tab_];
+    const float btn = Px(kSubTabSize), gap = Px(kSubTabGap);
+    const float total = tab.sub_tab_count * btn + (tab.sub_tab_count - 1) * gap;
+    ImGui::SetCursorScreenPos(ImVec2(IM_ROUND(pos.x + (width - total) * 0.5f), IM_ROUND(pos.y + Px(kSubTabCenterY) - btn * 0.5f)));
+    for (int i = 0; i < tab.sub_tab_count; ++i) {
+        if (i > 0)
+            ImGui::SameLine(0.0f, gap);
+        ImGui::PushID(1000 + i);
+        if (ui::IconTab("##sub", tab.sub_tabs[i].icon, i == sub_tab_[current_tab_]) && i != sub_tab_[current_tab_])
+            SelectTab(current_tab_, i);
+        ui::Tooltip(tab.sub_tabs[i].name);
+        ImGui::PopID();
+    }
+}
+
+void AdminPanel::SelectTab(int tab, int sub_tab) {
+    if (tab < 0 || tab >= kTabCount)
+        return;
+    if (tab == current_tab_ && (sub_tab < 0 || sub_tab == sub_tab_[tab]))
+        return;
+    current_tab_ = tab;
+    if (sub_tab >= 0 && sub_tab < ImMax(1, kTabs[tab].sub_tab_count))
+        sub_tab_[tab] = sub_tab;
+    tab_changed_at_ = ImGui::GetTime();
 }
 
 void AdminPanel::RenderMainWindow() {
@@ -204,7 +247,13 @@ void AdminPanel::RenderMainWindow() {
         const ImVec2 size = ImGui::GetWindowSize();
         RenderHeader(pos, size.x);
 
-        const ImVec2 content_size(size.x - Px(kMargin) * 2.0f, size.y - Px(kContentTop) - Px(kMargin));
+        const TabDef& tab = kTabs[current_tab_];
+        float content_top = Px(kContentTop);
+        if (tab.sub_tab_count > 0) {
+            RenderSubTabs(pos, size.x);
+            content_top = Px(kSubContentTop);
+        }
+        const ImVec2 content_size(size.x - Px(kMargin) * 2.0f, size.y - content_top - Px(kMargin));
 
         // Small fade + slide when switching tabs.
         float t = 1.0f;
@@ -212,11 +261,10 @@ void AdminPanel::RenderMainWindow() {
             t = ImSaturate(static_cast<float>(ImGui::GetTime() - tab_changed_at_) / 0.22f);
         const float ease = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
 
-        ImGui::SetCursorScreenPos(ImVec2(pos.x + Px(kMargin), pos.y + Px(kContentTop) + (1.0f - ease) * Px(8)));
+        ImGui::SetCursorScreenPos(ImVec2(pos.x + Px(kMargin), pos.y + content_top + (1.0f - ease) * Px(8)));
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * ease);
         ImGui::BeginGroup();
-        const TabDef& tab = kTabs[current_tab_];
-        ImGui::PushID(current_tab_);
+        ImGui::PushID(current_tab_ * 100 + sub_tab_[current_tab_]);
         switch (tab.page) {
         case Page::Players:     RenderPlayersPage(content_size); break;
         case Page::Misc:        RenderMiscPage(content_size); break;
@@ -308,11 +356,19 @@ void AdminPanel::RenderConfirmModal(const ImVec2& center) {
 }
 
 void AdminPanel::RefreshConfigs() {
+    const std::string previous =
+        selected_config_ >= 0 && selected_config_ < static_cast<int>(configs_.size()) ? configs_[selected_config_] : loaded_config_;
     configs_ = ListConfigs(config_dir_);
     selected_config_ = -1;
     for (int i = 0; i < static_cast<int>(configs_.size()); ++i)
-        if (configs_[i] == config_name_)
+        if (configs_[i] == previous)
             selected_config_ = i;
+}
+
+void AdminPanel::SetConfigStatus(bool error, const std::string& text) {
+    config_status_ = text;
+    config_status_error_ = error;
+    config_status_time_ = ImGui::GetTime();
 }
 
 } // namespace foxy

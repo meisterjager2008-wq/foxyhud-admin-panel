@@ -50,6 +50,7 @@ struct AccentInit {
 } // namespace
 
 Palette& Colors() { return g_palette; }
+ImVec4   DefaultAccent() { return kDefaultAccent; }
 Fonts&   GetFonts() { return g_fonts; }
 float    Scale() { return g_scale; }
 

@@ -32,6 +32,12 @@ void Section(const char* title, const char* right_text = nullptr);
 float ItemWidth();
 float ItemRight();
 
+// Keybind boxes and color swatches line up in one "accessory" column to the
+// right of the labels. AccessoryX() is its screen x; SameLineAccessory(n)
+// moves the cursor there on the current line (n = n-th swatch slot).
+float AccessoryX();
+void  SameLineAccessory(int slot = 0);
+
 // Width of each of `count` items sharing `total` width (0 = ItemWidth()).
 float SplitWidth(int count, float total = 0.0f);
 
@@ -44,9 +50,17 @@ void Spacing(float px);
 
 bool Checkbox(const char* label, bool* v);
 bool Keybind(const char* str_id, int* key);                        // key is an ImGuiKey
-bool CheckboxKeybind(const char* label, bool* v, int* key);        // checkbox + right aligned keybind
-bool LabelKeybind(const char* label, int* key);                    // plain label + right aligned keybind
+bool CheckboxKeybind(const char* label, bool* v, int* key);        // checkbox + keybind in the accessory column
+bool LabelKeybind(const char* label, int* key);                    // bright label + keybind right after it
 const char* KeyName(int key);
+
+// Small square color swatch. Left click opens the picker (with presets and a
+// hex field), right click offers copy / paste. `col` is RGBA (or RGB when
+// alpha is false).
+bool ColorSwatch(const char* str_id, float* col, bool alpha = true);
+bool CheckboxColor(const char* label, bool* v, float* col, bool alpha = true);
+bool CheckboxColors(const char* label, bool* v, float* const cols[], int count, bool alpha = true);
+bool LabelColor(const char* label, float* col, bool alpha = true);
 
 bool SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format = "%.2f");
 bool SliderInt(const char* label, int* v, int v_min, int v_max, const char* format = "%d");
@@ -58,19 +72,29 @@ bool MultiCombo(const char* label, bool* selected, const char* const items[], in
 // width: 0 = ItemWidth(), > 0 = pixels, < 0 = available width + width
 // (so -FLT_MIN fills the line, -50 leaves 50px on the right).
 bool InputText(const char* id, const char* hint, char* buf, size_t buf_size, float width = 0.0f,
-               Icon icon = Icon::None, ImGuiInputTextFlags flags = 0);
+               Icon icon = Icon::None, ImGuiInputTextFlags flags = 0, bool border = true);
 
-enum class ButtonStyle { Default, Accent, Danger, Warning };
+// Default: framed. Accent / Danger / Warning: tinted. Flat: subtle fill, no
+// border (the Config tab action buttons). Ghost: text only until hovered.
+enum class ButtonStyle { Default, Accent, Danger, Warning, Flat, Ghost };
 bool Button(const char* label, const ImVec2& size = ImVec2(0, 0), ButtonStyle style = ButtonStyle::Default);
 
-bool ColorEdit(const char* label, float rgb[3]);
-bool AccentPresets(const char* id, float rgb[3]);
+// Button that has to be clicked twice within 3 seconds; the second click
+// returns true. Shows `confirm_label` while armed.
+bool ConfirmButton(const char* label, const char* confirm_label, const ImVec2& size = ImVec2(0, 0),
+                   ButtonStyle style = ButtonStyle::Default, ButtonStyle armed_style = ButtonStyle::Danger);
 
 // Header navigation tab (icon + label, accent outline when selected).
 bool Tab(const char* label, Icon icon, bool selected);
 
-// Clickable row used for lists (configs, etc). Returns true when clicked.
+// Icon-only sub tab button (the centered row under the header).
+bool IconTab(const char* str_id, Icon icon, bool selected);
+
+// Clickable row used for lists. Returns true when clicked.
 bool ListRow(const char* id, const char* text, bool selected, Icon icon = Icon::None, const char* right_text = nullptr);
+
+// Plain list row with a solid accent bar when selected (the config list).
+bool SelectRow(const char* label, bool selected);
 
 // --- Text -------------------------------------------------------------------
 

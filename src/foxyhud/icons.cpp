@@ -170,6 +170,44 @@ void DrawIcon(ImDrawList* dl, Icon icon, const ImVec2& center, float size, ImU32
         dl->AddPolyline(pts, 3, col, 0, p.t * 1.2f);
         break;
     }
+
+    case Icon::Flag: {
+        p.Line(-0.36f, -0.48f, -0.36f, 0.48f);
+        const ImVec2 cloth[] = {p.P(-0.36f, -0.42f), p.P(0.42f, -0.42f), p.P(0.22f, -0.18f), p.P(0.42f, 0.06f),
+                                p.P(-0.36f, 0.06f)};
+        dl->AddPolyline(cloth, 5, col, 0, p.t);
+        break;
+    }
+
+    case Icon::Ban:
+        p.Circle(0.0f, 0.0f, 0.44f);
+        p.Line(-0.31f, -0.31f, 0.31f, 0.31f);
+        break;
+
+    case Icon::Sliders: {
+        const float knobs[] = {0.18f, -0.22f, 0.08f};
+        for (int i = 0; i < 3; ++i) {
+            const float y = -0.32f + i * 0.32f;
+            p.Line(-0.48f, y, 0.48f, y);
+            p.Dot(knobs[i], y, 0.12f);
+        }
+        break;
+    }
+
+    case Icon::EyeFrame: {
+        const float e = 0.48f, l = 0.17f;
+        for (int sx = -1; sx <= 1; sx += 2)
+            for (int sy = -1; sy <= 1; sy += 2) {
+                const ImVec2 corner[] = {p.P(sx * e, sy * (e - l)), p.P(sx * e, sy * e), p.P(sx * (e - l), sy * e)};
+                dl->AddPolyline(corner, 3, col, 0, p.t);
+            }
+        dl->PathLineTo(p.P(-0.30f, 0.0f));
+        dl->PathBezierQuadraticCurveTo(p.P(0.0f, -0.36f), p.P(0.30f, 0.0f));
+        dl->PathBezierQuadraticCurveTo(p.P(0.0f, 0.36f), p.P(-0.30f, 0.0f));
+        dl->PathStroke(col, ImDrawFlags_Closed, p.t);
+        p.Dot(0.0f, 0.0f, 0.08f);
+        break;
+    }
     }
 }
 

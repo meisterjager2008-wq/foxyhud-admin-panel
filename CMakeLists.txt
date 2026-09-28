@@ -54,7 +54,11 @@ add_library(foxyhud_panel STATIC
     src/foxyhud/settings.cpp
     src/foxyhud/panel_util.cpp)
 target_include_directories(foxyhud_panel PUBLIC src)
-target_link_libraries(foxyhud_panel PUBLIC imgui)
+find_package(Threads REQUIRED)
+target_link_libraries(foxyhud_panel PUBLIC imgui PRIVATE Threads::Threads)
+if(WIN32)
+    target_link_libraries(foxyhud_panel PRIVATE shell32)  # ShellExecuteW for "Open Folder"
+endif()
 
 if(MSVC)
     target_compile_options(foxyhud_panel PRIVATE /W4 /utf-8)

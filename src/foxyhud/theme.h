@@ -56,7 +56,8 @@ void LoadFonts(float scale = 1.0f);
 // Writes the palette into ImGuiStyle so stock ImGui widgets match as well.
 void Apply(float scale = 1.0f);
 
-void SetAccent(const ImVec4& accent);
+void   SetAccent(const ImVec4& accent);
+ImVec4 DefaultAccent();
 
 // Colour helpers. Col() honours ImGuiStyle::Alpha so fades and BeginDisabled() work.
 ImU32  Col(const ImVec4& c, float alpha_mul = 1.0f);

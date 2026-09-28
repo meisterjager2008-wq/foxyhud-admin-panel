@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <string>
 
@@ -76,14 +77,15 @@ void AdminPanel::RenderOverlayWindows() {
         RenderAdminLogWindow(interactive);
     if (settings_.win_chat_log)
         RenderChatLogWindow(interactive);
+    RenderToasts();
 }
 
 void AdminPanel::RenderPlayerCounter(bool interactive) {
     const std::vector<PlayerInfo>& players = backend_.GetPlayers();
-    int admins = 0, reports = 0, ping_sum = 0;
+    const int reports = static_cast<int>(backend_.GetReports().size());
+    int admins = 0, ping_sum = 0;
     for (const PlayerInfo& p : players) {
         admins += p.is_admin ? 1 : 0;
-        reports += p.reports;
         ping_sum += p.ping_ms;
     }
 
@@ -216,6 +218,8 @@ void AdminPanel::RenderChatLogWindow(bool interactive) {
     }
 
     const Palette& c = theme::Colors();
+    const PanelSettings& s = settings_;
+    auto color = [](const float* f) { return ImVec4(f[0], f[1], f[2], f[3]); };
     const std::vector<ChatMessage>& chat = backend_.GetChatLog();
     BeginLogRegion("##lines");
     ImGui::PushTextWrapPos(0.0f);
@@ -224,8 +228,15 @@ void AdminPanel::RenderChatLogWindow(bool interactive) {
         ImGui::PushID(static_cast<int>(i));
         ui::TextColored(c.text_faint, "%s", detail::ClockTime(m.timestamp).substr(0, 5).c_str());
         ImGui::SameLine();
-        if (m.player_id == 0) {
-            ui::TextColored(c.warning, "%s", m.text.c_str());
+        if (m.kind != ChatKind::Player) {
+            const float* col = s.chat_system_color;
+            if (m.kind == ChatKind::Admin)
+                col = s.chat_admin_color;
+            else if (m.kind == ChatKind::Announcement)
+                col = s.chat_announce_color;
+            else if (m.kind == ChatKind::PrivateMessage)
+                col = s.chat_pm_color;
+            ui::TextColored(color(col), "%s", m.text.c_str());
         } else {
             ui::TextColored(c.accent_text, "%s:", m.player_name.c_str());
             if (interactive && ImGui::IsItemHovered()) {
@@ -234,12 +245,11 @@ void AdminPanel::RenderChatLogWindow(bool interactive) {
                 ImGui::GetWindowDrawList()->AddLine(ImVec2(mn.x, mx.y), mx, Col(c.accent_text), 1.0f);
                 if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                     selected_player_ = m.player_id;
-                    current_tab_ = 0;
-                    tab_changed_at_ = ImGui::GetTime();
+                    SelectTab(0, 0);
                 }
             }
             ImGui::SameLine();
-            ui::TextColored(m.flagged ? c.danger : c.text, "%s", m.text.c_str());
+            ui::TextColored(m.flagged ? color(s.chat_filtered_color) : c.text, "%s", m.text.c_str());
         }
         ImGui::PopID();
     }
@@ -248,6 +258,61 @@ void AdminPanel::RenderChatLogWindow(bool interactive) {
     chat_seen_ = chat.size();
     EndLogRegion(new_lines);
     ImGui::End();
+}
+
+// Corner pop-ups for new reports (Misc > Overlays > Report toasts).
+void AdminPanel::RenderToasts() {
+    const std::vector<PlayerReport>& reports = backend_.GetReports();
+    uint64_t newest = last_report_id_;
+    for (const PlayerReport& r : reports) {
+        if (reports_primed_ && r.id > last_report_id_ && settings_.report_toasts)
+            toasts_.push_back({"New report", r.target_name + " reported by " + r.reporter_name + " (" + r.reason + ")",
+                               ImGui::GetTime()});
+        newest = ImMax(newest, r.id);
+    }
+    last_report_id_ = newest;
+    reports_primed_ = true;  // reports that existed before the panel started don't pop up
+
+    const double now = ImGui::GetTime();
+    const float life = settings_.toast_seconds;
+    toasts_.erase(std::remove_if(toasts_.begin(), toasts_.end(),
+                                 [&](const Toast& t) { return now - t.created_at > life; }),
+                  toasts_.end());
+    if (toasts_.empty())
+        return;
+
+    const Palette& c = theme::Colors();
+    const Fonts& f = theme::GetFonts();
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const float w = Px(290), pad = Px(12), stripe = Px(3);
+    const float right = vp->WorkPos.x + vp->WorkSize.x - Px(16);
+    float y = vp->WorkPos.y + Px(16);
+
+    for (auto it = toasts_.rbegin(); it != toasts_.rend(); ++it) {
+        const float age = static_cast<float>(now - it->created_at);
+        const float in = settings_.animations ? ImSaturate(age / 0.2f) : 1.0f;
+        const float out = settings_.animations ? ImSaturate((life - age) / 0.4f) : 1.0f;
+        const float a = in * out;
+        const float slide = (1.0f - in) * Px(24);
+
+        const float title_h = theme::FontSize(f.bold);
+        const float body_fs = theme::FontSize(f.body);
+        const float wrap = w - pad * 2.0f - Px(22);
+        const ImVec2 body = f.body->CalcTextSizeA(body_fs, FLT_MAX, wrap, it->text.c_str());
+        const float h = pad + title_h + Px(4) + body.y + pad;
+        const ImVec2 mn(right - w + slide, y), mx(right + slide, y + h);
+
+        dl->AddRectFilled(mn, mx, Col(c.window_bg, 0.97f * a), Px(5));
+        dl->AddRect(mn, mx, Col(c.window_border, a), Px(5));
+        dl->AddRectFilled(ImVec2(mn.x, mn.y + Px(6)), ImVec2(mn.x + stripe, mx.y - Px(6)), Col(c.danger, a), Px(2));
+        DrawIcon(dl, Icon::Flag, ImVec2(mn.x + pad + Px(7), mn.y + pad + title_h * 0.5f), Px(13), Col(c.danger, a));
+        const float tx = mn.x + pad + Px(22);
+        dl->AddText(f.bold, title_h, ui::Snap(ImVec2(tx, mn.y + pad)), Col(c.text_bright, a), it->title.c_str());
+        dl->AddText(f.body, body_fs, ui::Snap(ImVec2(tx, mn.y + pad + title_h + Px(4))), Col(c.text, a),
+                    it->text.c_str(), nullptr, wrap);
+        y += h + Px(8);
+    }
 }
 
 } // namespace foxy

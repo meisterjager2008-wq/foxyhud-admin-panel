@@ -28,12 +28,38 @@ struct PlayerInfo {
     bool        flagged = false;      // e.g. flagged by your anti-exploit or auto-moderation
 };
 
+enum class ChatKind { Player, System, Admin, Announcement, PrivateMessage };
+
 struct ChatMessage {
     double      timestamp = 0;        // unix time (seconds)
-    uint64_t    player_id = 0;        // 0 = system message
+    uint64_t    player_id = 0;        // sender, 0 for system messages
     std::string player_name;
     std::string text;
+    ChatKind    kind = ChatKind::Player;
     bool        flagged = false;      // hit the chat filter
+};
+
+// A report one player filed against another.
+struct PlayerReport {
+    uint64_t    id = 0;
+    uint64_t    target_id = 0;
+    std::string target_name;
+    uint64_t    reporter_id = 0;
+    std::string reporter_name;
+    std::string reason;
+    std::string message;              // what the reporter wrote
+    double      timestamp = 0;        // unix time
+};
+
+struct BanEntry {
+    uint64_t    player_id = 0;
+    std::string player_name;
+    std::string reason;
+    std::string note;
+    std::string banned_by;
+    double      banned_at = 0;        // unix time
+    double      expires_at = 0;       // unix time, 0 = permanent
+    bool        ip_ban = false;
 };
 
 enum class ModerationAction { Warn, Kick, Ban };
@@ -64,6 +90,14 @@ public:
         static const std::vector<ChatMessage> empty;
         return empty;
     }
+    virtual const std::vector<PlayerReport>& GetReports() {  // open reports, oldest first
+        static const std::vector<PlayerReport> empty;
+        return empty;
+    }
+    virtual const std::vector<BanEntry>& GetBans() {
+        static const std::vector<BanEntry> empty;
+        return empty;
+    }
 
     virtual void Moderate(const ModerationRequest& /*request*/) {}
     virtual void SetFrozen(uint64_t /*player_id*/, bool /*frozen*/) {}
@@ -74,6 +108,8 @@ public:
     virtual void BringPlayer(uint64_t /*player_id*/) {}
     virtual void SendPrivateMessage(uint64_t /*player_id*/, const std::string& /*text*/) {}
     virtual void Broadcast(const std::string& /*text*/, bool /*as_banner*/) {}
+    virtual void ResolveReport(uint64_t /*report_id*/, bool /*action_taken*/) {}
+    virtual void Unban(uint64_t /*player_id*/) {}
 
     // Called once per frame at most, whenever something on the Misc/Config tabs changed.
     virtual void OnSettingsChanged(const PanelSettings& /*settings*/) {}

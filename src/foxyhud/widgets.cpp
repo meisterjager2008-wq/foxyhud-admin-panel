@@ -6,12 +6,9 @@
 #include <string>
 #include <unordered_map>
 
+#include "foxyhud/panel_util.h"
 #include "foxyhud/theme.h"
 #include "imgui_internal.h"
-
-#if IMGUI_VERSION_NUM < 19110
-#define ImGuiChildFlags_Borders ImGuiChildFlags_Border
-#endif
 
 namespace foxy::ui {
 namespace {
@@ -343,6 +340,14 @@ float ItemWidth() {
 
 float ItemRight() { return ContentX0() + ItemWidth(); }
 
+float AccessoryX() { return ContentX0() + (float)(int)(ItemWidth() * 0.68f); }
+
+void SameLineAccessory(int slot) {
+    ImGui::SameLine();
+    ImGuiWindow* window = Win();
+    window->DC.CursorPos.x = ImMax(window->DC.CursorPos.x, AccessoryX() + slot * (Px(13) + Px(10)));
+}
+
 float SplitWidth(int count, float total) {
     if (total <= 0.0f)
         total = ItemWidth();
@@ -423,20 +428,17 @@ const char* KeyName(int key) {
 
 bool Keybind(const char* str_id, int* key) { return KeybindImpl(str_id, key, 0.0f); }
 
-static bool RightAlignedKeybind(const char* label, int* key) {
-    const char* text = KeyName(*key);
-    const float w = ImMax(Px(48), ImGui::CalcTextSize(text).x + Px(16));
-    ImGui::SameLine();
-    Win()->DC.CursorPos.x = ImMax(Win()->DC.CursorPos.x, ItemRight() - w);
+static bool AccessoryKeybind(const char* label, int* key, float line_h) {
+    SameLineAccessory(0);
     ImGui::PushID(label);
-    const bool changed = KeybindImpl("##key", key, ImGui::GetTextLineHeight());
+    const bool changed = KeybindImpl("##key", key, line_h);
     ImGui::PopID();
     return changed;
 }
 
 bool CheckboxKeybind(const char* label, bool* v, int* key) {
     bool changed = Checkbox(label, v);
-    changed |= RightAlignedKeybind(label, key);
+    changed |= AccessoryKeybind(label, key, ImGui::GetItemRectSize().y);
     return changed;
 }
 
@@ -448,8 +450,12 @@ bool LabelKeybind(const char* label, int* key) {
     const ImVec2 ts = ImGui::CalcTextSize(label, nullptr, true);
     ImGui::ItemSize(ts);
     ImGui::ItemAdd(ImRect(pos, ImVec2(pos.x + ts.x, pos.y + ts.y)), 0);
-    DrawLabel(window->DrawList, pos, Col(C().text), label);
-    return RightAlignedKeybind(label, key);
+    DrawLabel(window->DrawList, pos, Col(C().text_bright), label);
+    ImGui::SameLine(0.0f, Px(10));
+    ImGui::PushID(label);
+    const bool changed = KeybindImpl("##key", key, ts.y);
+    ImGui::PopID();
+    return changed;
 }
 
 bool SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format) {
@@ -556,7 +562,7 @@ bool MultiCombo(const char* label, bool* selected, const char* const items[], in
 }
 
 bool InputText(const char* id, const char* hint, char* buf, size_t buf_size, float width, Icon icon,
-               ImGuiInputTextFlags flags) {
+               ImGuiInputTextFlags flags, bool border) {
     float w = width;
     if (w == 0.0f)
         w = ItemWidth();
@@ -566,7 +572,7 @@ bool InputText(const char* id, const char* hint, char* buf, size_t buf_size, flo
     const float icon_w = icon != Icon::None ? Px(18) : 0.0f;
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(Px(8), Px(3)));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Px(3));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, border ? 1.0f : 0.0f);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, C().widget_bg);
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, C().widget_bg_hover);
     ImGui::PushStyleColor(ImGuiCol_FrameBgActive, C().widget_bg_hover);
@@ -628,105 +634,326 @@ bool Button(const char* label, const ImVec2& size_arg, ButtonStyle style) {
     case ButtonStyle::Accent:  cols = Tinted(C().accent, th, tp); break;
     case ButtonStyle::Danger:  cols = Tinted(C().danger, th, tp); break;
     case ButtonStyle::Warning: cols = Tinted(C().warning, th, tp); break;
+    case ButtonStyle::Flat:
+        cols.bg = Col(Lerp(Lerp(WithAlpha(C().widget_bg, 0.55f), C().widget_bg_hover, th), C().widget_bg, tp));
+        cols.border = 0;
+        cols.text = Col(C().text_bright);
+        break;
+    case ButtonStyle::Ghost:
+        cols.bg = Col(C().widget_bg_hover, th * (1.0f - 0.4f * tp));
+        cols.border = 0;
+        cols.text = Col(Lerp(C().text_bright, C().accent_text, th * 0.5f));
+        break;
     }
 
     ImDrawList* dl = window->DrawList;
     const float r = Px(3);
     dl->AddRectFilled(bb.Min, bb.Max, cols.bg, r);
-    dl->AddRect(bb.Min, bb.Max, cols.border, r);
+    if (cols.border & IM_COL32_A_MASK)
+        dl->AddRect(bb.Min, bb.Max, cols.border, r);
     DrawLabel(dl, ImVec2(bb.GetCenter().x - label_size.x * 0.5f, bb.GetCenter().y - label_size.y * 0.5f), cols.text, label);
     theme::PopFont();
     return pressed;
 }
 
-bool ColorEdit(const char* label, float rgb[3]) {
+// --- Color swatches ------------------------------------------------------------
+
+namespace {
+
+float g_color_clipboard[4] = {1, 1, 1, 1};
+bool  g_color_clipboard_set = false;
+char  g_hex_buf[16] = {};
+
+const ImVec4 kSwatchPresets[] = {
+    ImVec4(1.00f, 1.00f, 1.00f, 1), ImVec4(0.55f, 0.55f, 0.58f, 1), ImVec4(0.87f, 0.25f, 0.27f, 1),
+    ImVec4(0.93f, 0.55f, 0.20f, 1), ImVec4(0.95f, 0.85f, 0.25f, 1), ImVec4(0.30f, 0.75f, 0.45f, 1),
+    ImVec4(0.25f, 0.75f, 0.85f, 1), ImVec4(0.00f, 0.36f, 0.82f, 1), ImVec4(0.55f, 0.35f, 0.95f, 1),
+    ImVec4(0.90f, 0.40f, 0.65f, 1),
+};
+
+bool PresetRow(float* col) {
     ImGuiWindow* window = Win();
-    if (window->SkipItems)
-        return false;
-
-    const ImGuiID id = window->GetID(label);
-    const ImGuiID popup_id = ImHashStr("##picker", 0, id);
-    const float line_h = ImGui::GetTextLineHeight();
-    const ImVec2 pos = window->DC.CursorPos;
-    const ImVec2 swatch_size(Px(30), Px(14));
-    const ImRect swatch(ImVec2(ItemRight() - swatch_size.x, pos.y + (line_h - swatch_size.y) * 0.5f),
-                        ImVec2(ItemRight(), pos.y + (line_h + swatch_size.y) * 0.5f));
-    const ImRect bb(pos, ImVec2(swatch.Max.x, pos.y + line_h));
-    ImGui::ItemSize(bb);
-    if (!ImGui::ItemAdd(bb, id, &swatch))
-        return false;
-
-    bool hovered, held;
-    const bool pressed = ImGui::ButtonBehavior(swatch, id, &hovered, &held);
-    if (pressed)
-        ImGui::OpenPopupEx(popup_id);
-
-    ImDrawList* dl = window->DrawList;
-    DrawLabel(dl, pos, Col(C().text), label);
-    const float r = Px(3);
-    dl->AddRectFilled(swatch.Min, swatch.Max, Col(ImVec4(rgb[0], rgb[1], rgb[2], 1.0f)), r);
-    dl->AddRect(swatch.Min, swatch.Max, Col(hovered ? C().text_dim : C().widget_border), r);
-
+    const float d = Px(13), gap = Px(5);
     bool changed = false;
-    ImGui::SetNextWindowPos(ImVec2(swatch.Max.x, swatch.Max.y + Px(4)), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(Px(8), Px(8)));
-    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, Px(4));
-    ImGui::PushStyleColor(ImGuiCol_PopupBg, C().popup_bg);
-    ImGui::PushStyleColor(ImGuiCol_Border, C().widget_border);
-    const bool open = ImGui::BeginPopupEx(popup_id, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
-                                                        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-    if (open) {
-        ImGui::SetNextItemWidth(Px(170));
-        changed = ImGui::ColorPicker3("##picker", rgb,
-                                      ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview |
-                                          ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_PickerHueBar);
-        TextDim("#%02X%02X%02X", (int)(rgb[0] * 255 + 0.5f), (int)(rgb[1] * 255 + 0.5f), (int)(rgb[2] * 255 + 0.5f));
-        ImGui::EndPopup();
-    }
-    return changed;
-}
-
-bool AccentPresets(const char* id, float rgb[3]) {
-    static const ImVec4 kPresets[] = {
-        ImVec4(0.000f, 0.361f, 0.816f, 1), ImVec4(0.486f, 0.302f, 1.000f, 1), ImVec4(0.859f, 0.243f, 0.549f, 1),
-        ImVec4(0.839f, 0.212f, 0.251f, 1), ImVec4(0.910f, 0.502f, 0.125f, 1), ImVec4(0.180f, 0.667f, 0.376f, 1),
-        ImVec4(0.086f, 0.627f, 0.667f, 1),
-    };
-    ImGuiWindow* window = Win();
-    if (window->SkipItems)
-        return false;
-
-    ImGui::PushID(id);
-    const float d = Px(14), gap = Px(8);
-    const ImVec2 start = window->DC.CursorPos;
-    bool changed = false;
-    for (int i = 0; i < IM_ARRAYSIZE(kPresets); ++i) {
-        const ImVec4& p = kPresets[i];
-        const ImVec2 mn(start.x + i * (d + gap), start.y);
-        const ImRect bb(mn, ImVec2(mn.x + d, mn.y + d));
-        const ImGuiID pid = window->GetID(i);
+    for (int i = 0; i < IM_ARRAYSIZE(kSwatchPresets); ++i) {
+        const ImVec4& p = kSwatchPresets[i];
         if (i > 0)
             ImGui::SameLine(0.0f, gap);
+        const ImVec2 pos = window->DC.CursorPos;
+        const ImRect bb(pos, ImVec2(pos.x + d, pos.y + d));
+        const ImGuiID pid = window->GetID(i);
         ImGui::ItemSize(bb);
         if (!ImGui::ItemAdd(bb, pid))
             continue;
         bool hovered, held;
         if (ImGui::ButtonBehavior(bb, pid, &hovered, &held)) {
-            rgb[0] = p.x;
-            rgb[1] = p.y;
-            rgb[2] = p.z;
+            col[0] = p.x;
+            col[1] = p.y;
+            col[2] = p.z;
             changed = true;
         }
-        const bool active = ImFabs(rgb[0] - p.x) + ImFabs(rgb[1] - p.y) + ImFabs(rgb[2] - p.z) < 0.02f;
-        const float th = Animate(pid, 0, hovered ? 1.0f : 0.0f);
-        window->DrawList->AddCircleFilled(bb.GetCenter(), d * 0.5f - Px(1) * (1.0f - th), Col(p));
-        if (active)
-            window->DrawList->AddCircle(bb.GetCenter(), d * 0.5f + Px(2.5f), Col(C().text_bright, 0.9f), 0, Px(1.5f));
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, Col(p), Px(3));
+        if (hovered)
+            window->DrawList->AddRect(ImVec2(bb.Min.x - Px(1.5f), bb.Min.y - Px(1.5f)),
+                                      ImVec2(bb.Max.x + Px(1.5f), bb.Max.y + Px(1.5f)), Col(C().text_bright), Px(4));
+    }
+    return changed;
+}
+
+void FormatHex(const float* col, bool alpha, char* out, size_t size) {
+    auto b = [](float v) { return (int)(ImSaturate(v) * 255.0f + 0.5f); };
+    if (alpha)
+        std::snprintf(out, size, "#%02X%02X%02X%02X", b(col[0]), b(col[1]), b(col[2]), b(col[3]));
+    else
+        std::snprintf(out, size, "#%02X%02X%02X", b(col[0]), b(col[1]), b(col[2]));
+}
+
+bool ParseHex(const char* text, float* col, bool alpha) {
+    if (*text == '#')
+        ++text;
+    const size_t len = std::strlen(text);
+    unsigned r = 0, g = 0, b = 0, a = 255;
+    if (len == 6 && std::sscanf(text, "%02x%02x%02x", &r, &g, &b) == 3) {
+    } else if (len == 8 && std::sscanf(text, "%02x%02x%02x%02x", &r, &g, &b, &a) == 4) {
+    } else {
+        return false;
+    }
+    col[0] = r / 255.0f;
+    col[1] = g / 255.0f;
+    col[2] = b / 255.0f;
+    if (alpha)
+        col[3] = a / 255.0f;
+    return true;
+}
+
+void PushPopupStyle() {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(Px(8), Px(8)));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, Px(4));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, C().popup_bg);
+    ImGui::PushStyleColor(ImGuiCol_Border, C().widget_border);
+}
+
+void PopPopupStyle() {
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+}
+
+bool ColorSwatchImpl(const char* str_id, float* col, bool alpha, float line_h) {
+    ImGuiWindow* window = Win();
+    if (window->SkipItems)
+        return false;
+
+    const ImGuiID id = window->GetID(str_id);
+    const ImGuiID picker_id = ImHashStr("##picker", 0, id);
+    const ImGuiID menu_id = ImHashStr("##menu", 0, id);
+    const float sz = Px(13);
+    const ImVec2 pos = window->DC.CursorPos;
+    const float dy = line_h > 0.0f ? (sz - line_h) * 0.5f : 0.0f;
+    const ImRect bb(ImVec2(pos.x, pos.y - dy), ImVec2(pos.x + sz, pos.y - dy + sz));
+    ImGui::ItemSize(ImVec2(sz, line_h > 0.0f ? line_h : sz));
+    if (!ImGui::ItemAdd(bb, id))
+        return false;
+
+    bool hovered, held;
+    if (ImGui::ButtonBehavior(bb, id, &hovered, &held))
+        ImGui::OpenPopupEx(picker_id);
+    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+        ImGui::OpenPopupEx(menu_id);
+    const bool picker_open = ImGui::IsPopupOpen(picker_id, ImGuiPopupFlags_None);
+    const float th = Animate(id, 0, (hovered || picker_open) ? 1.0f : 0.0f);
+
+    ImDrawList* dl = window->DrawList;
+    const float r = Px(3);
+    const ImVec4 c(col[0], col[1], col[2], alpha ? col[3] : 1.0f);
+    if (c.w < 1.0f)
+        ImGui::RenderColorRectWithAlphaCheckerboard(dl, bb.Min, bb.Max, ImGui::GetColorU32(c), sz * 0.5f, ImVec2(0, 0), r);
+    else
+        dl->AddRectFilled(bb.Min, bb.Max, ImGui::GetColorU32(c), r);
+    if (th > 0.001f) {
+        const float o = Px(1.5f);
+        dl->AddRect(ImVec2(bb.Min.x - o, bb.Min.y - o), ImVec2(bb.Max.x + o, bb.Max.y + o),
+                    Col(picker_open ? C().accent_text : C().text_dim, th), r + o);
+    }
+
+    bool changed = false;
+
+    // Picker: SV square + hue (+ alpha) bar, presets, hex field.
+    ImGui::SetNextWindowPos(ImVec2(bb.Min.x, bb.Max.y + Px(5)), ImGuiCond_Appearing);
+    PushPopupStyle();
+    const bool picker = ImGui::BeginPopupEx(picker_id, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
+                                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+    PopPopupStyle();
+    if (picker) {
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(Px(6), Px(7)));
+        ImGui::SetNextItemWidth(Px(180));
+        ImGuiColorEditFlags flags = ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview |
+                                    ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
+                                    ImGuiColorEditFlags_PickerHueBar;
+        if (alpha)
+            flags |= ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf;
+        changed |= alpha ? ImGui::ColorPicker4("##sv", col, flags) : ImGui::ColorPicker3("##sv", col, flags);
+        changed |= PresetRow(col);
+
+        const ImGuiID hex_id = ImGui::GetID("##hex");
+        if (ImGui::GetActiveID() != hex_id)
+            FormatHex(col, alpha, g_hex_buf, sizeof(g_hex_buf));
+        if (InputText("##hex", "#RRGGBB", g_hex_buf, sizeof(g_hex_buf), -FLT_MIN))
+            changed |= ParseHex(g_hex_buf, col, alpha);
+        ImGui::PopStyleVar();
+        ImGui::EndPopup();
+    }
+
+    // Right click: copy / paste.
+    ImGui::SetNextWindowSizeConstraints(ImVec2(Px(110), 0.0f), ImVec2(FLT_MAX, FLT_MAX));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(Px(4), Px(4)));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, Px(4));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, C().popup_bg);
+    ImGui::PushStyleColor(ImGuiCol_Border, C().widget_border);
+    const bool menu = ImGui::BeginPopupEx(menu_id, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
+                                                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+    PopPopupStyle();
+    if (menu) {
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, Px(1)));
+        if (DropdownItem("Copy", false)) {
+            for (int i = 0; i < 4; ++i)
+                g_color_clipboard[i] = (i < 3 || alpha) ? col[i] : 1.0f;
+            g_color_clipboard_set = true;
+            char hex[16];
+            FormatHex(col, alpha, hex, sizeof(hex));
+            ImGui::SetClipboardText(hex);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::BeginDisabled(!g_color_clipboard_set);
+        if (DropdownItem("Paste", false)) {
+            for (int i = 0; i < (alpha ? 4 : 3); ++i)
+                col[i] = g_color_clipboard[i];
+            changed = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndDisabled();
+        ImGui::PopStyleVar();
+        ImGui::EndPopup();
+    }
+
+    if (changed)
+        ImGui::MarkItemEdited(id);
+    return changed;
+}
+
+} // namespace
+
+bool ColorSwatch(const char* str_id, float* col, bool alpha) { return ColorSwatchImpl(str_id, col, alpha, 0.0f); }
+
+bool CheckboxColors(const char* label, bool* v, float* const cols[], int count, bool alpha) {
+    bool changed = Checkbox(label, v);
+    const float line_h = ImGui::GetItemRectSize().y;
+    ImGui::PushID(label);
+    for (int i = 0; i < count; ++i) {
+        SameLineAccessory(i);
+        ImGui::PushID(i);
+        changed |= ColorSwatchImpl("##color", cols[i], alpha, line_h);
+        ImGui::PopID();
     }
     ImGui::PopID();
     return changed;
+}
+
+bool CheckboxColor(const char* label, bool* v, float* col, bool alpha) {
+    float* const cols[] = {col};
+    return CheckboxColors(label, v, cols, 1, alpha);
+}
+
+bool LabelColor(const char* label, float* col, bool alpha) {
+    ImGuiWindow* window = Win();
+    if (window->SkipItems)
+        return false;
+    const ImVec2 pos = window->DC.CursorPos;
+    const ImVec2 ts = ImGui::CalcTextSize(label, nullptr, true);
+    ImGui::ItemSize(ts);
+    ImGui::ItemAdd(ImRect(pos, ImVec2(pos.x + ts.x, pos.y + ts.y)), 0);
+    DrawLabel(window->DrawList, pos, Col(C().text), label);
+    SameLineAccessory(0);
+    ImGui::PushID(label);
+    const bool changed = ColorSwatchImpl("##color", col, alpha, ts.y);
+    ImGui::PopID();
+    return changed;
+}
+
+bool ConfirmButton(const char* label, const char* confirm_label, const ImVec2& size, ButtonStyle style,
+                   ButtonStyle armed_style) {
+    static ImGuiID s_armed = 0;
+    static double  s_armed_at = 0.0;
+    const ImGuiID key = Win()->GetID(label);
+    const bool armed = s_armed == key && ImGui::GetTime() - s_armed_at < 3.0;
+
+    char buf[160];
+    std::snprintf(buf, sizeof(buf), "%s###%s", armed ? confirm_label : label, label);
+    if (!Button(buf, size, armed ? armed_style : style))
+        return false;
+    if (armed) {
+        s_armed = 0;
+        return true;
+    }
+    s_armed = key;
+    s_armed_at = ImGui::GetTime();
+    return false;
+}
+
+bool IconTab(const char* str_id, Icon icon, bool selected) {
+    ImGuiWindow* window = Win();
+    if (window->SkipItems)
+        return false;
+
+    const ImGuiID id = window->GetID(str_id);
+    const float sz = Px(24);
+    const ImVec2 pos = window->DC.CursorPos;
+    const ImRect bb(pos, ImVec2(pos.x + sz, pos.y + sz));
+    ImGui::ItemSize(bb);
+    if (!ImGui::ItemAdd(bb, id))
+        return false;
+
+    bool hovered, held;
+    const bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held);
+    const float ts = Animate(id, 0, selected ? 1.0f : 0.0f);
+    const float th = Animate(id, 1, hovered ? 1.0f : 0.0f);
+    const ImVec4 col = Lerp(Lerp(C().text_dim, C().text, th), C().text_bright, ts);
+    DrawIcon(window->DrawList, icon, bb.GetCenter(), Px(15), Col(col));
+    return pressed;
+}
+
+bool SelectRow(const char* label, bool selected) {
+    ImGuiWindow* window = Win();
+    if (window->SkipItems)
+        return false;
+
+    const ImGuiID id = window->GetID(label);
+    const float h = Px(18);
+    const ImVec2 pos = window->DC.CursorPos;
+    const ImRect bb(pos, ImVec2(pos.x + ContentWidth(), pos.y + h));
+    ImGui::ItemSize(bb);
+    if (!ImGui::ItemAdd(bb, id))
+        return false;
+
+    bool hovered, held;
+    const bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held);
+    const float ts = Animate(id, 0, selected ? 1.0f : 0.0f);
+    const float th = Animate(id, 1, hovered ? 1.0f : 0.0f);
+
+    ImDrawList* dl = window->DrawList;
+    const float r = Px(2);
+    if (th * (1.0f - ts) > 0.001f)
+        dl->AddRectFilled(bb.Min, bb.Max, Col(C().widget_bg_hover, th * (1.0f - ts)), r);
+    if (ts > 0.001f)
+        dl->AddRectFilled(bb.Min, bb.Max, Col(Lerp(C().accent_dark, C().accent, 0.25f), 0.85f * ts), r);
+
+    theme::PushFont(theme::GetFonts().bold);
+    const ImVec2 ts_size = ImGui::CalcTextSize(label, nullptr, true);
+    const ImVec4 col = Lerp(Lerp(C().text_bright, ImVec4(1, 1, 1, 1), th), ImVec4(1, 1, 1, 1), ts);
+    DrawLabel(dl, ImVec2(bb.Min.x + Px(7), bb.GetCenter().y - ts_size.y * 0.5f), Col(col, 0.92f + 0.08f * ts), label);
+    theme::PopFont();
+    return pressed;
 }
 
 bool Tab(const char* label, Icon icon, bool selected) {

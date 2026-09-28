@@ -24,6 +24,10 @@ enum class Icon {
     List,
     Close,
     ChevronDown,
+    Flag,
+    Ban,        // circle with a slash
+    Sliders,
+    EyeFrame,   // eye inside corner brackets
 };
 
 // `size` is the edge of the square the icon fits in, `rotation` is in radians

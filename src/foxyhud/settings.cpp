@@ -8,7 +8,23 @@
 #include <initializer_list>
 #include <map>
 #include <sstream>
+#include <thread>
 #include <type_traits>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#else
+#include <spawn.h>
+#include <sys/wait.h>
+extern char** environ;
+#endif
 
 namespace foxy {
 namespace {
@@ -18,10 +34,12 @@ namespace {
 template <typename S, typename F>
 void VisitFields(S& s, F&& f) {
     f("menu_key", s.menu_key);
+    f("accent_override", s.accent_override);
     f("accent", s.accent);
     f("menu_opacity", s.menu_opacity);
     f("animations", s.animations);
     f("tooltips", s.tooltips);
+    f("block_input", s.block_input);
 
     f("confirm_bans", s.confirm_bans);
     f("confirm_kicks", s.confirm_kicks);
@@ -60,6 +78,32 @@ void VisitFields(S& s, F&& f) {
     f("report_alerts", s.report_alerts);
     f("alert_sound", s.alert_sound);
     f("alert_volume", s.alert_volume);
+
+    f("name_tags", s.name_tags);
+    f("name_tag_color", s.name_tag_color);
+    f("name_tag_info", s.name_tag_info);
+    f("highlight_reported", s.highlight_reported);
+    f("reported_color", s.reported_color);
+    f("flagged_color", s.flagged_color);
+    f("highlight_style", s.highlight_style);
+    f("highlight_frozen", s.highlight_frozen);
+    f("frozen_color", s.frozen_color);
+    f("highlight_admins", s.highlight_admins);
+    f("admin_color", s.admin_color);
+    f("overlay_distance", s.overlay_distance);
+    f("map_blips", s.map_blips);
+    f("blip_color", s.blip_color);
+    f("report_markers", s.report_markers);
+    f("marker_color", s.marker_color);
+    f("chat_admin_color", s.chat_admin_color);
+    f("chat_announce_color", s.chat_announce_color);
+    f("chat_pm_color", s.chat_pm_color);
+    f("chat_system_color", s.chat_system_color);
+    f("chat_filtered_color", s.chat_filtered_color);
+    f("report_toasts", s.report_toasts);
+    f("toast_seconds", s.toast_seconds);
+    f("report_flash", s.report_flash);
+    f("flash_color", s.flash_color);
 }
 
 std::string ToString(bool v) { return v ? "1" : "0"; }
@@ -150,8 +194,14 @@ void ClampSettings(PanelSettings& s) {
     auto valid_key = [](int key) {
         return key == ImGuiKey_None || (key >= ImGuiKey_NamedKey_BEGIN && key < ImGuiKey_NamedKey_END);
     };
-    for (float& c : s.accent)
-        clamp(c, 0.0f, 1.0f);
+    for (float* col : {s.accent, s.name_tag_color, s.reported_color, s.flagged_color, s.frozen_color, s.admin_color,
+                       s.blip_color, s.marker_color, s.chat_admin_color, s.chat_announce_color, s.chat_pm_color,
+                       s.chat_system_color, s.chat_filtered_color, s.flash_color})
+        for (int i = 0; i < (col == s.accent ? 3 : 4); ++i)
+            clamp(col[i], 0.0f, 1.0f);
+    clamp(s.highlight_style, 0, 2);
+    clamp(s.overlay_distance, 10, 1000);
+    clamp(s.toast_seconds, 2.0f, 20.0f);
     clamp(s.menu_opacity, 60.0f, 100.0f);
     clamp(s.max_players, 2, 128);
     clamp(s.afk_minutes, 1, 60);
@@ -175,6 +225,35 @@ std::vector<std::string> ListConfigs(const std::string& dir) {
     }
     std::sort(names.begin(), names.end());
     return names;
+}
+
+bool OpenFolder(const std::string& dir) {
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const std::filesystem::path abs = std::filesystem::absolute(dir, ec);
+    if (ec)
+        return false;
+#if defined(_WIN32)
+    const std::wstring wpath = abs.wstring();
+    return reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", wpath.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32;
+#else
+#if defined(__APPLE__)
+    const char* tool = "open";
+#else
+    const char* tool = "xdg-open";
+#endif
+    // Spawned directly (no shell), and reaped on a detached thread so the frame never blocks.
+    std::string path = abs.string();
+    char* argv[] = {const_cast<char*>(tool), path.data(), nullptr};
+    pid_t pid = 0;
+    if (posix_spawnp(&pid, tool, nullptr, nullptr, argv, environ) != 0)
+        return false;
+    std::thread([pid] {
+        int status = 0;
+        waitpid(pid, &status, 0);
+    }).detach();
+    return true;
+#endif
 }
 
 std::string SanitizeConfigName(const std::string& name) {

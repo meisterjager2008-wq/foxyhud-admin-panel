@@ -70,6 +70,49 @@ std::string MaskIp(const std::string& ip) {
 
 std::string IdString(uint64_t id) { return std::to_string(id); }
 
+std::string TimeAgo(double unix_seconds) {
+    const double d = static_cast<double>(std::time(nullptr)) - unix_seconds;
+    char buf[32];
+    if (d < 60)
+        return "just now";
+    if (d < 3600)
+        std::snprintf(buf, sizeof(buf), "%dm ago", static_cast<int>(d / 60));
+    else if (d < 86400)
+        std::snprintf(buf, sizeof(buf), "%dh ago", static_cast<int>(d / 3600));
+    else
+        std::snprintf(buf, sizeof(buf), "%dd ago", static_cast<int>(d / 86400));
+    return buf;
+}
+
+std::string TimeLeft(double expires_at) {
+    if (expires_at <= 0)
+        return "Permanent";
+    const int left = static_cast<int>(expires_at - static_cast<double>(std::time(nullptr)));
+    if (left <= 0)
+        return "Expired";
+    char buf[32];
+    if (left >= 86400)
+        std::snprintf(buf, sizeof(buf), "%dd %dh left", left / 86400, (left % 86400) / 3600);
+    else if (left >= 3600)
+        std::snprintf(buf, sizeof(buf), "%dh %dm left", left / 3600, (left % 3600) / 60);
+    else
+        std::snprintf(buf, sizeof(buf), "%dm left", ImMax(1, left / 60));
+    return buf;
+}
+
+std::string DateTime(double unix_seconds) {
+    const std::time_t t = static_cast<std::time_t>(unix_seconds);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%b %d, %H:%M", &tm);
+    return buf;
+}
+
 ImVec4 AvatarColor(const std::string& name) {
     static const ImVec4 kColors[] = {
         ImVec4(0.36f, 0.55f, 0.95f, 1), ImVec4(0.62f, 0.44f, 0.95f, 1), ImVec4(0.90f, 0.42f, 0.62f, 1),
