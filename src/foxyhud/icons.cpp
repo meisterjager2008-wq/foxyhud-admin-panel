@@ -164,16 +164,17 @@ void DrawIcon(ImDrawList* dl, Icon icon, const ImVec2& center, float size, ImU32
     case Icon::Karambit: {
         // Traced from a karambit silhouette, lying on its side: finger ring at the
         // left, handle and blade arching over like a rainbow, tip hanging down on the right.
+        // It is wider than the icon box on purpose so it looks as big as the other icons.
         static const ImVec2 kBack[] = {  // ring -> tip, along the back of the blade
-            {-0.373f, -0.046f}, {-0.249f, -0.120f}, {-0.140f, -0.146f}, {-0.066f, -0.147f}, {-0.009f, -0.137f},
-            {0.060f, -0.147f}, {0.128f, -0.157f}, {0.192f, -0.139f}, {0.247f, -0.114f}, {0.314f, -0.073f},
-            {0.372f, -0.025f}, {0.427f, 0.036f}, {0.457f, 0.103f}, {0.470f, 0.157f},
+            {-0.466f, -0.074f}, {-0.311f, -0.192f}, {-0.175f, -0.234f}, {-0.083f, -0.235f}, {-0.011f, -0.219f},
+            {0.075f, -0.235f}, {0.160f, -0.251f}, {0.240f, -0.222f}, {0.309f, -0.182f}, {0.393f, -0.117f},
+            {0.465f, -0.040f}, {0.534f, 0.058f}, {0.571f, 0.165f}, {0.587f, 0.251f},
         };
         static const ImVec2 kEdge[] = {  // tip -> ring, along the cutting edge and finger notch
-            {0.470f, 0.157f}, {0.433f, 0.133f}, {0.388f, 0.088f}, {0.356f, 0.061f}, {0.324f, 0.033f},
-            {0.284f, 0.011f}, {0.246f, 0.012f}, {0.198f, -0.004f}, {0.123f, -0.003f}, {0.078f, 0.004f},
-            {0.040f, 0.004f}, {-0.003f, -0.040f}, {-0.023f, -0.051f}, {-0.086f, -0.032f}, {-0.140f, -0.020f},
-            {-0.225f, 0.022f}, {-0.282f, 0.066f},
+            {0.587f, 0.251f}, {0.541f, 0.213f}, {0.485f, 0.141f}, {0.445f, 0.098f}, {0.405f, 0.053f},
+            {0.355f, 0.018f}, {0.307f, 0.019f}, {0.247f, -0.006f}, {0.154f, -0.005f}, {0.098f, 0.006f},
+            {0.050f, 0.006f}, {-0.004f, -0.064f}, {-0.029f, -0.082f}, {-0.107f, -0.051f}, {-0.175f, -0.032f},
+            {-0.281f, 0.035f}, {-0.352f, 0.106f},
         };
         SmoothPath(p, kBack, IM_ARRAYSIZE(kBack), false);
         SmoothPath(p, kEdge, IM_ARRAYSIZE(kEdge), true);
@@ -182,8 +183,8 @@ void DrawIcon(ImDrawList* dl, Icon icon, const ImVec2& center, float size, ImU32
         if (boost > 0.0f)
             dl->AddPolyline(dl->_Path.Data, dl->_Path.Size, col, ImDrawFlags_Closed, 1.3f * boost);
         dl->PathFillConcave(col);
-        const float ring_r = 0.066f * size + 0.35f * boost, ring_t = 0.050f * size + 0.9f * boost;
-        dl->AddCircle(p.P(-0.379f, 0.050f), ring_r, col, 0, ring_t);  // finger ring
+        const float ring_r = 0.083f * size + 0.35f * boost, ring_t = 0.062f * size + 0.9f * boost;
+        dl->AddCircle(p.P(-0.474f, 0.080f), ring_r, col, 0, ring_t);  // finger ring
         break;
     }
 
